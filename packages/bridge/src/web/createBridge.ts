@@ -1,10 +1,7 @@
-import type {
-  BridgeEvent,
-  BridgeRequest,
-  BridgeResponse,
-} from '../shared/types/protocol';
+import type { BridgeRequest } from '../shared/types/protocol';
 
-type AnyBridgeFn = (...args: unknown[]) => Promise<unknown>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyBridgeFn = (...args: any[]) => Promise<any>;
 
 type BridgeInstance<T extends Record<string, AnyBridgeFn>> = T & {
   isNativeMethodAvailable(method: keyof T | string): boolean;
