@@ -1,20 +1,16 @@
-import {
-  bridge,
-  createWebView,
-  postMessageSchema,
-} from '@webview-bridge/react-native';
-import {
-  type AppBridge,
-  type AppPostMessageSchema,
-  type ImagePickerSource,
-  POST_MESSAGE_EVENT,
+import type { RefObject, MutableRefObject } from 'react';
+import type {
+  AppBridge,
+  BridgeResponse,
+  BridgeEvent,
+  ImagePickerSource,
 } from '@azit/bridge';
 import Constants from 'expo-constants';
 import * as ImagePicker from 'expo-image-picker';
 import * as Linking from 'expo-linking';
 import * as Location from 'expo-location';
 import { Linking as RNLinking, Platform, Share } from 'react-native';
-import { z } from 'zod';
+import type { WebView, WebViewMessageEvent } from 'react-native-webview';
 import {
   AZIT_APP_NAME,
   NAVER_MAP_ANDROID_APP_STORE_URL,
@@ -23,11 +19,9 @@ import {
 } from '@/constants/url';
 import { performKakaoLogin } from '@/api/performKakaoLogin';
 
-/**
- * Web -> Native 브릿지 설정
- * Web 앱에서 호출할 수 있는 Native 메서드들을 정의
- */
-export const appBridge = bridge<AppBridge>({
+type WebViewRef = RefObject<WebView | null> | MutableRefObject<WebView | null>;
+
+export const appBridge: AppBridge = {
   async openExternalBrowser(url: string) {
     await Linking.openURL(url);
   },
@@ -81,8 +75,6 @@ export const appBridge = bridge<AppBridge>({
   async openLocationSettings(): Promise<void> {
     await RNLinking.openSettings();
   },
-
-  // 이미지 피커 메서드
   async pickProfileImage(source: ImagePickerSource) {
     try {
       if (source === 'camera') {
@@ -156,12 +148,9 @@ export const appBridge = bridge<AppBridge>({
       };
     }
   },
-
   async getAppVersion(): Promise<string> {
     return Constants.expoConfig?.version ?? '1.0.0';
   },
-
-  // 인증 메서드
   async socialLogin(type) {
     try {
       if (type === 'kakao') {
@@ -181,33 +170,84 @@ export const appBridge = bridge<AppBridge>({
       };
     }
   },
-});
+};
 
-/**
- * Native -> Web 브릿지 설정 (PostMessage)
- * Native에서 Web으로 이벤트를 전송할 때 사용하는 스키마 정의
- */
-export const appPostMessageSchema = postMessageSchema<AppPostMessageSchema>({
-  [POST_MESSAGE_EVENT.EVENT_NAME1]: {
-    validate: (data) => z.string().parse(data),
-  },
-  [POST_MESSAGE_EVENT.EVENT_NAME2]: {
-    validate: (value) => {
-      return z.object({ message: z.string() }).parse(value);
-    },
-  },
-});
+async function handleWebMessage(
+  event: WebViewMessageEvent,
+  webViewRef: WebViewRef
+): Promise<void> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(event.nativeEvent.data);
+  } catch {
+    return;
+  }
 
-/**
- * WebView 및 postMessage export
- * - WebView: Web 콘텐츠를 표시하는 컴포넌트
- * - postMessage: Native -> Web 이벤트 전송 함수
- */
-export const { WebView, postMessage } = createWebView({
-  bridge: appBridge,
-  postMessageSchema: appPostMessageSchema,
-  debug: true,
-  fallback: (method) => {
-    console.warn(`Method '${method}' not found in native`);
-  },
-});
+  if (typeof parsed !== 'object' || parsed === null) {
+    return;
+  }
+
+  const msg = parsed as {
+    type?: string;
+    method?: string;
+    args?: unknown[];
+    id?: string;
+  };
+
+  if (
+    msg.type !== 'request' ||
+    typeof msg.method !== 'string' ||
+    typeof msg.id !== 'string'
+  ) {
+    return;
+  }
+
+  const { method, args = [], id } = msg;
+  const fn = (appBridge as Record<string, unknown>)[method];
+
+  if (typeof fn !== 'function') {
+    const response: BridgeResponse = {
+      type: 'response',
+      id,
+      error: `Method '${method}' not found`,
+    };
+    webViewRef.current?.injectJavaScript(
+      `window.dispatchEvent(new MessageEvent('message', { data: ${JSON.stringify(JSON.stringify(response))} }));`
+    );
+    return;
+  }
+
+  try {
+    const result = await (fn as (...a: unknown[]) => Promise<unknown>)(...args);
+    const response: BridgeResponse = { type: 'response', id, result };
+    webViewRef.current?.injectJavaScript(
+      `window.dispatchEvent(new MessageEvent('message', { data: ${JSON.stringify(JSON.stringify(response))} }));`
+    );
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    const response: BridgeResponse = { type: 'response', id, error };
+    webViewRef.current?.injectJavaScript(
+      `window.dispatchEvent(new MessageEvent('message', { data: ${JSON.stringify(JSON.stringify(response))} }));`
+    );
+  }
+}
+
+function postMessage(
+  eventName: string,
+  payload: unknown,
+  webViewRef: WebViewRef
+): void {
+  const msg: BridgeEvent = { type: 'event', event: eventName, payload };
+  webViewRef.current?.injectJavaScript(
+    `window.dispatchEvent(new MessageEvent('message', { data: ${JSON.stringify(JSON.stringify(msg))} }));`
+  );
+}
+
+export function createWebViewBridge(webViewRef: WebViewRef) {
+  return {
+    onMessage: (event: WebViewMessageEvent) =>
+      handleWebMessage(event, webViewRef),
+    postMessage: (eventName: string, payload: unknown) =>
+      postMessage(eventName, payload, webViewRef),
+  };
+}
