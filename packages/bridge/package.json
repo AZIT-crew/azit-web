@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit",
+    "generate:spec": "tsx scripts/generate-spec.ts"
   },
   "exports": {
     ".": {
@@ -17,6 +19,7 @@
     "@azit/eslint": "workspace:*",
     "@azit/typescript": "workspace:*",
     "eslint": "catalog:",
+    "tsx": "^4.19.4",
     "typescript": "catalog:"
   }
 }

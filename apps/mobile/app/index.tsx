@@ -1,7 +1,8 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { initializeKakaoSDK } from '@react-native-kakao/core';
-import { WebView } from '@/bridge';
+import { createWebViewBridge } from '@/bridge';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
+import { WebView } from 'react-native-webview';
 import type { WebView as WebViewType } from 'react-native-webview';
 import { BackHandler, StyleSheet } from 'react-native';
 import * as Linking from 'expo-linking';
@@ -16,6 +17,8 @@ export default function App() {
   const [initialUrl, setInitialUrl] = useState<string>(WEBVIEW_URL);
   const [showSplash, setShowSplash] = useState(true);
   const [canGoBack, setCanGoBack] = useState(false);
+
+  const webViewBridge = createWebViewBridge(webViewRef);
 
   // 뒤로가기 처리
   useEffect(() => {
@@ -126,6 +129,7 @@ export default function App() {
           thirdPartyCookiesEnabled={true}
           originWhitelist={['*']}
           applicationNameForUserAgent={'azitwebview'}
+          onMessage={webViewBridge.onMessage}
           onNavigationStateChange={(navState) => {
             setCurrentUrl(navState.url);
             setCanGoBack(navState.canGoBack);
