@@ -6,6 +6,7 @@ on:
       - develop
     paths:
       - 'packages/bridge/**'
+  workflow_dispatch:
 
 concurrency:
   group: publish-bridge
