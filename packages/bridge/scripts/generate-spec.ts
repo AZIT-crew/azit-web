@@ -78,7 +78,7 @@ const methodTable = methods
 
 const spec = `# AZIT Bridge 스펙
 
-> 자동 생성 파일 — \`pnpm --filter @azit/bridge generate:spec\`로 재생성
+> 자동 생성 파일 — \`pnpm --filter @azit-crew/bridge generate:spec\`로 재생성
 
 ---
 

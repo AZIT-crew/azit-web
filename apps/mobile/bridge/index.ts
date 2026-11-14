@@ -4,7 +4,7 @@ import type {
   BridgeResponse,
   BridgeEvent,
   ImagePickerSource,
-} from '@azit/bridge';
+} from '@azit-crew/bridge';
 import Constants from 'expo-constants';
 import * as ImagePicker from 'expo-image-picker';
 import * as Linking from 'expo-linking';

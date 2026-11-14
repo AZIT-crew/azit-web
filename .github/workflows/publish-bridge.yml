@@ -1,4 +1,4 @@
-name: Publish @azit/bridge
+name: Publish @azit-crew/bridge
 
 on:
   push:
@@ -33,7 +33,7 @@ jobs:
         with:
           node-version: 22
           registry-url: https://npm.pkg.github.com
-          scope: '@azit'
+          scope: '@azit-crew'
           cache: pnpm
 
       - name: Install dependencies
@@ -42,10 +42,10 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Typecheck
-        run: pnpm --filter @azit/bridge typecheck
+        run: pnpm --filter @azit-crew/bridge typecheck
 
       - name: Build
-        run: pnpm --filter @azit/bridge build
+        run: pnpm --filter @azit-crew/bridge build
 
       - name: Bump patch version
         id: version
@@ -60,16 +60,16 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add packages/bridge/package.json
-          git commit -m "🔧 [chore] @azit/bridge 버전을 ${{ steps.version.outputs.version }}으로 올려요 [skip ci]"
+          git commit -m "🔧 [chore] @azit-crew/bridge 버전을 ${{ steps.version.outputs.version }}으로 올려요 [skip ci]"
           git push
 
       - name: Publish to GitHub Packages
-        run: pnpm --filter @azit/bridge publish --no-git-checks
+        run: pnpm --filter @azit-crew/bridge publish --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate bridge spec
-        run: pnpm --filter @azit/bridge generate:spec
+        run: pnpm --filter @azit-crew/bridge generate:spec
 
       - name: Create PR in azit-ios
         env:
@@ -89,17 +89,17 @@ jobs:
           git add Bridge/bridge-spec.md
           git diff --cached --quiet && echo "변경 없음, PR 생성 생략" && exit 0
 
-          git commit -m "chore(bridge): @azit/bridge 스펙을 v${VERSION}으로 업데이트해요"
+          git commit -m "chore(bridge): @azit-crew/bridge 스펙을 v${VERSION}으로 업데이트해요"
           git push origin "$BRANCH"
 
           gh pr create \
             --repo AZIT-crew/azit-ios \
             --base main \
             --head "$BRANCH" \
-            --title "chore(bridge): @azit/bridge 스펙을 v${VERSION}으로 업데이트해요" \
+            --title "chore(bridge): @azit-crew/bridge 스펙을 v${VERSION}으로 업데이트해요" \
             --body "## Summary
 
-          - \`@azit/bridge\` v${VERSION} 릴리즈에 따라 브릿지 스펙 문서를 자동 업데이트해요
+          - \`@azit-crew/bridge\` v${VERSION} 릴리즈에 따라 브릿지 스펙 문서를 자동 업데이트해요
 
           ## 변경된 파일
           - \`Bridge/bridge-spec.md\` — 브릿지 메서드·프로토콜 명세 최신화
@@ -124,17 +124,17 @@ jobs:
           git add bridge-spec.md
           git diff --cached --quiet && echo "변경 없음, PR 생성 생략" && exit 0
 
-          git commit -m "chore(bridge): @azit/bridge 스펙을 v${VERSION}으로 업데이트해요"
+          git commit -m "chore(bridge): @azit-crew/bridge 스펙을 v${VERSION}으로 업데이트해요"
           git push origin "$BRANCH"
 
           gh pr create \
             --repo AZIT-crew/azit-android \
             --base main \
             --head "$BRANCH" \
-            --title "chore(bridge): @azit/bridge 스펙을 v${VERSION}으로 업데이트해요" \
+            --title "chore(bridge): @azit-crew/bridge 스펙을 v${VERSION}으로 업데이트해요" \
             --body "## Summary
 
-          - \`@azit/bridge\` v${VERSION} 릴리즈에 따라 브릿지 스펙 문서를 자동 업데이트해요
+          - \`@azit-crew/bridge\` v${VERSION} 릴리즈에 따라 브릿지 스펙 문서를 자동 업데이트해요
 
           ## 변경된 파일
           - \`bridge-spec.md\` — 브릿지 메서드·프로토콜 명세 최신화

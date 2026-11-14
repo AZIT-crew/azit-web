@@ -11,7 +11,7 @@
     "lint": "expo lint"
   },
   "dependencies": {
-    "@azit/bridge": "workspace:*",
+    "@azit-crew/bridge": "workspace:*",
     "@expo/vector-icons": "^15.0.3",
     "@react-native-kakao/core": "^2.4.5",
     "@react-native-kakao/user": "^2.4.5",

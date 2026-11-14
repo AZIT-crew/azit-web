@@ -238,7 +238,7 @@ importers:
 
   apps/mobile:
     dependencies:
-      '@azit/bridge':
+      '@azit-crew/bridge':
         specifier: workspace:*
         version: link:../../packages/bridge
       '@expo/vector-icons':
@@ -359,7 +359,7 @@ importers:
 
   apps/web:
     dependencies:
-      '@azit/bridge':
+      '@azit-crew/bridge':
         specifier: workspace:*
         version: link:../../packages/bridge
       '@sentry/react':
