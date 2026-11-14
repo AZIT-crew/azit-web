@@ -61,6 +61,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add packages/bridge/package.json
           git commit -m "🔧 [chore] @azit-crew/bridge 버전을 ${{ steps.version.outputs.version }}으로 올려요 [skip ci]"
+          git pull --rebase origin develop
           git push
 
       - name: Publish to GitHub Packages
