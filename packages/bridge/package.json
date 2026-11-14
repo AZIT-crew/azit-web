@@ -1,12 +1,12 @@
 {
   "name": "@azit/bridge",
-  "private": true,
-  "version": "0.0.0",
+  "private": false,
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "build": "tsc --noEmit",
+    "build": "tsup src/index.ts --format esm,cjs --dts --out-dir dist --clean",
     "generate:spec": "tsx scripts/generate-spec.ts"
   },
   "exports": {
@@ -15,10 +15,26 @@
       "default": "./src/index.ts"
     }
   },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js",
+        "require": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "bridge-spec.md"
+  ],
   "devDependencies": {
     "@azit/eslint": "workspace:*",
     "@azit/typescript": "workspace:*",
     "eslint": "catalog:",
+    "tsup": "^8.5.0",
     "tsx": "^4.19.4",
     "typescript": "catalog:"
   }

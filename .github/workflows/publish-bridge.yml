@@ -1,0 +1,141 @@
+name: Publish @azit/bridge
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - 'packages/bridge/**'
+
+concurrency:
+  group: publish-bridge
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish to GitHub Packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT_TOKEN }}
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://npm.pkg.github.com
+          scope: '@azit'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Typecheck
+        run: pnpm --filter @azit/bridge typecheck
+
+      - name: Build
+        run: pnpm --filter @azit/bridge build
+
+      - name: Bump patch version
+        id: version
+        run: |
+          cd packages/bridge
+          npm version patch --no-git-tag-version
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add packages/bridge/package.json
+          git commit -m "🔧 [chore] @azit/bridge 버전을 ${{ steps.version.outputs.version }}으로 올려요 [skip ci]"
+          git push
+
+      - name: Publish to GitHub Packages
+        run: pnpm --filter @azit/bridge publish --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate bridge spec
+        run: pnpm --filter @azit/bridge generate:spec
+
+      - name: Create PR in azit-ios
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git clone https://x-access-token:${GH_TOKEN}@github.com/AZIT-crew/azit-ios.git /tmp/azit-ios
+          cd /tmp/azit-ios
+
+          BRANCH="chore/bridge-spec-$VERSION"
+          git checkout -b "$BRANCH"
+
+          cp $GITHUB_WORKSPACE/packages/bridge/bridge-spec.md Bridge/bridge-spec.md
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Bridge/bridge-spec.md
+          git diff --cached --quiet && echo "변경 없음, PR 생성 생략" && exit 0
+
+          git commit -m "chore(bridge): @azit/bridge 스펙을 v${VERSION}으로 업데이트해요"
+          git push origin "$BRANCH"
+
+          gh pr create \
+            --repo AZIT-crew/azit-ios \
+            --base main \
+            --head "$BRANCH" \
+            --title "chore(bridge): @azit/bridge 스펙을 v${VERSION}으로 업데이트해요" \
+            --body "## Summary
+
+          - \`@azit/bridge\` v${VERSION} 릴리즈에 따라 브릿지 스펙 문서를 자동 업데이트해요
+
+          ## 변경된 파일
+          - \`Bridge/bridge-spec.md\` — 브릿지 메서드·프로토콜 명세 최신화
+
+          > 이 PR은 azit-web의 \`packages/bridge\` 변경 시 자동으로 생성돼요."
+
+      - name: Create PR in azit-android
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git clone https://x-access-token:${GH_TOKEN}@github.com/AZIT-crew/azit-android.git /tmp/azit-android
+          cd /tmp/azit-android
+
+          BRANCH="chore/bridge-spec-$VERSION"
+          git checkout -b "$BRANCH"
+
+          cp $GITHUB_WORKSPACE/packages/bridge/bridge-spec.md bridge-spec.md
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add bridge-spec.md
+          git diff --cached --quiet && echo "변경 없음, PR 생성 생략" && exit 0
+
+          git commit -m "chore(bridge): @azit/bridge 스펙을 v${VERSION}으로 업데이트해요"
+          git push origin "$BRANCH"
+
+          gh pr create \
+            --repo AZIT-crew/azit-android \
+            --base main \
+            --head "$BRANCH" \
+            --title "chore(bridge): @azit/bridge 스펙을 v${VERSION}으로 업데이트해요" \
+            --body "## Summary
+
+          - \`@azit/bridge\` v${VERSION} 릴리즈에 따라 브릿지 스펙 문서를 자동 업데이트해요
+
+          ## 변경된 파일
+          - \`bridge-spec.md\` — 브릿지 메서드·프로토콜 명세 최신화
+
+          > 이 PR은 azit-web의 \`packages/bridge\` 변경 시 자동으로 생성돼요."
