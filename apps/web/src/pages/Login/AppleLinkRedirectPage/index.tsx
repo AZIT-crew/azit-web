@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { useFlow } from '@/app/routes/stackflow';
 
@@ -19,8 +19,11 @@ const LINK_ERROR_MESSAGE: Record<string, string> = {
 export function AppleLinkRedirectPage() {
   const { replace } = useFlow();
   const queryClient = useQueryClient();
+  const handledRef = useRef(false);
 
   useEffect(() => {
+    if (handledRef.current) return;
+    handledRef.current = true;
     const result = getQueryParam('result');
 
     if (result === 'success') {

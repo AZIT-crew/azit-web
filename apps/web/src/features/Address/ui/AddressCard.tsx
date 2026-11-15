@@ -10,43 +10,40 @@ interface AddressCardProps {
   handleEdit?: (id: number) => void;
   handleSetDefault?: (id: number) => void;
   isDefault: boolean;
+  isSelected: boolean;
+  disabled?: boolean;
 }
-
 export function AddressCard({
   address,
   handleDelete,
   handleEdit,
   handleSetDefault,
   isDefault,
+  isSelected,
+  disabled,
 }: AddressCardProps) {
-  const fullAddress = `${address.baseAddress} ${address.detailAddress}`;
-
-  const handleCardClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (
-      (e.target as HTMLElement).closest('button') ||
-      (e.target as HTMLElement).tagName === 'BUTTON'
-    ) {
-      return;
-    }
-
-    if (!isDefault && handleSetDefault) {
-      handleSetDefault(address.id);
-    }
-  };
-
   return (
     <div
-      className={isDefault ? styles.cardDefault : styles.cardNormal}
-      onClick={handleCardClick}
+      className={isSelected ? styles.cardDefault : styles.cardNormal}
+      data-address-id={address.id}
     >
-      <div className={styles.contentSection}>
+      <button
+        type="button"
+        className={styles.selectionButton}
+        disabled={disabled}
+        aria-pressed={isSelected}
+        aria-label={`${address.recipientName}, ${address.baseAddress}, ${address.detailAddress} 배송지 선택`}
+        onClick={() => handleSetDefault?.(address.id)}
+      >
         {isDefault && <Chip type="skyblue">기본 배송지</Chip>}
-        <div className={styles.recipientRow}>
+        <span className={styles.recipientRow}>
           <span className={styles.recipientName}>{address.recipientName}</span>
           <span className={styles.recipientPhone}>{address.phoneNumber}</span>
-        </div>
-        <p className={styles.addressText}>{fullAddress}</p>
-      </div>
+        </span>
+        <span className={styles.addressText}>
+          {address.baseAddress} {address.detailAddress}
+        </span>
+      </button>
       <div
         className={
           isDefault
@@ -58,6 +55,7 @@ export function AddressCard({
           <button
             type="button"
             className={styles.deleteButton}
+            disabled={disabled}
             onClick={() => handleDelete?.(address.id)}
           >
             삭제
@@ -66,6 +64,7 @@ export function AddressCard({
         <button
           type="button"
           className={styles.editButton}
+          disabled={disabled}
           onClick={() => handleEdit?.(address.id)}
         >
           수정

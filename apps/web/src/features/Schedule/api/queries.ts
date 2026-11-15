@@ -12,6 +12,7 @@ import { getMemberScheduleList } from '@/entities/Schedule/api/getMemberSchedule
 import { getScheduleCalendar } from '@/entities/Schedule/api/getScheduleCalendar';
 import { getScheduleCheckInStatus } from '@/entities/Schedule/api/getScheduleCheckInStatus';
 import { getScheduleList } from '@/entities/Schedule/api/getScheduleList';
+import { scheduleKeys } from '@/entities/Schedule/api/keys';
 import { postScheduleCheckIn } from '@/entities/Schedule/api/postScheduleCheckIn';
 import type {
   CreateScheduleRequest,
@@ -28,19 +29,7 @@ import { postSchedule } from './postSchedule';
 import { updateSchedule } from './updateSchedule';
 
 export const scheduleQueries = {
-  all: ['schedule'] as const,
-  detail: (scheduleId: number) =>
-    [...scheduleQueries.all, 'detail', scheduleId] as const,
-  participants: (scheduleId: number) =>
-    [...scheduleQueries.all, 'participants', scheduleId] as const,
-  listKey: (crewId: number, request?: CrewScheduleListRequest) =>
-    [...scheduleQueries.all, 'getScheduleList', crewId, request] as const,
-  memberListKey: () =>
-    [...scheduleQueries.all, 'getMemberScheduleList'] as const,
-  checkInStatusKey: () =>
-    [...scheduleQueries.all, 'getScheduleCheckInStatus'] as const,
-  calendarKey: (crewId: number, request?: CrewScheduleCalendarRequest) =>
-    [...scheduleQueries.all, 'getScheduleCalendar', crewId, request] as const,
+  ...scheduleKeys,
   getScheduleListQuery: (crewId: number, request?: CrewScheduleListRequest) =>
     queryOptions({
       queryKey: scheduleQueries.listKey(crewId, request),

@@ -3,7 +3,7 @@ import { Button } from '@azit/design-system/button';
 import { Header } from '@azit/design-system/header';
 import { AppScreen } from '@stackflow/plugin-basic-ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { useFlow } from '@/app/routes/stackflow';
 
@@ -26,12 +26,20 @@ import { toastError } from '@/shared/ui/toast';
 
 import * as styles from './index.css';
 
-export function ScheduleCreatePage({ params }: { params?: { date?: Date } }) {
+export function ScheduleCreatePage({
+  params,
+}: {
+  params?: { date?: Date; crewId?: number };
+}) {
   const { pop, push } = useFlow();
 
   const { data: myCrewsData } = useQuery(userQueries.myCrewsQuery());
   const joinedCrew =
-    myCrewsData?.find((c) => c.memberStatus === 'JOINED') ?? null;
+    myCrewsData?.find(
+      (c) =>
+        c.memberStatus === 'JOINED' &&
+        (!params?.crewId || c.crewId === Number(params.crewId))
+    ) ?? null;
   const crewId = joinedCrew?.crewId ?? 0;
   const isLeader = joinedCrew?.memberRole === MEMBER_ROLE.LEADER;
 
@@ -43,9 +51,10 @@ export function ScheduleCreatePage({ params }: { params?: { date?: Date } }) {
     if (joinedCrew && !isLeader) {
       setFormValues((prev) => ({ ...prev, runType: 'LIGHTNING' }));
     }
-  }, [joinedCrew, isLeader]);
+  }, [joinedCrew, isLeader, setFormValues]);
 
   const queryClient = useQueryClient();
+  const isSubmittingRef = useRef(false);
   const createMutation = useMutation({
     ...scheduleQueries.createScheduleMutation,
     meta: {
@@ -60,10 +69,14 @@ export function ScheduleCreatePage({ params }: { params?: { date?: Date } }) {
       });
       pop();
     },
+    onSettled: () => {
+      isSubmittingRef.current = false;
+    },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
     if (!validateForm()) return;
     if (crewId <= 0) {
       toastError('크루 정보를 불러오지 못했습니다. 다시 시도해주세요.');
@@ -71,6 +84,7 @@ export function ScheduleCreatePage({ params }: { params?: { date?: Date } }) {
     }
     const payload = buildCreateSchedulePayload(formValues);
     if (!payload) return;
+    isSubmittingRef.current = true;
     createMutation.mutate({ crewId, payload });
   };
 
@@ -96,6 +110,7 @@ export function ScheduleCreatePage({ params }: { params?: { date?: Date } }) {
               type="submit"
               form="schedule-create-form"
               size="large"
+              isLoading={createMutation.isPending}
               disabled={!isScheduleFormValid(formValues)}
               state={isScheduleFormValid(formValues) ? 'active' : 'disabled'}
             >

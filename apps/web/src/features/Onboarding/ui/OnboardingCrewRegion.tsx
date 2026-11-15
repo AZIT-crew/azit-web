@@ -53,7 +53,7 @@ export function OnboardingCrewRegion({
   return (
     <>
       <div className={styles.headerWrapper}>
-        <Header left={<BackButton onClick={onPrev} />} />
+        <Header left={<BackButton onClick={onPrev} disabled={isLoading} />} />
       </div>
       <div className={styles.stepContainer}>
         <div className={styles.headerSection}>
@@ -73,6 +73,7 @@ export function OnboardingCrewRegion({
                   selectedRegion === id && styles.regionCardSelected
                 )}
                 onClick={() => setSelectedRegion(id)}
+                disabled={isLoading}
               >
                 <Icon size={32} />
                 <span className={styles.regionLabel}>{label}</span>
@@ -84,7 +85,9 @@ export function OnboardingCrewRegion({
 
       <div className={styles.buttonWrapper}>
         <Button
-          state={selectedRegion && !isLoading ? 'active' : 'disabled'}
+          state={selectedRegion ? 'active' : 'disabled'}
+          disabled={!selectedRegion}
+          isLoading={isLoading}
           onClick={() => {
             if (selectedRegion) {
               onNext(selectedRegion);

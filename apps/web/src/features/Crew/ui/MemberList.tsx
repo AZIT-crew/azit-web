@@ -29,6 +29,7 @@ export function MemberList({
             joinedDate={member.joinedDate}
             onDeleteMember={onDeleteMember}
             isDeleting={isDeletingMemberId === member.memberId}
+            isDeletePending={isDeletingMemberId !== undefined}
           />
           {index < members.length - 1 && <Divider />}
         </div>

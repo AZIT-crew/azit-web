@@ -158,7 +158,6 @@ export function useBottomSheetDrag({
         controls.finished.then((completed) => {
           if (!completed) return;
           inProgressAnimationRef.current = null;
-          document.body.style.overflow = '';
           onDismiss();
         });
       } else {

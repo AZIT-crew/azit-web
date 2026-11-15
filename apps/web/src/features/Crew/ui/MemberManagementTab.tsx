@@ -5,7 +5,7 @@ export type MemberManagementTabType = 'member' | 'request';
 interface MemberManagementTabProps {
   activeTab: MemberManagementTabType;
   onTabChange: (tab: MemberManagementTabType) => void;
-  requestCount: number;
+  requestCount?: number;
 }
 
 export function MemberManagementTab({
@@ -48,7 +48,7 @@ export function MemberManagementTab({
                   : styles.tabLabelInactive
               }
             >
-              요청 ({requestCount})
+              요청{requestCount === undefined ? '' : ` (${requestCount})`}
             </span>
           </button>
         </div>

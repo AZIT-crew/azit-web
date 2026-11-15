@@ -29,6 +29,7 @@ export function MenuItem({ item, onClick }: MenuItemProps) {
   }, [item]);
 
   const handleClick = () => {
+    if (item.disabled || item.isLoading) return;
     onClick?.(item);
   };
 
@@ -54,12 +55,16 @@ export function MenuItem({ item, onClick }: MenuItemProps) {
           type="button"
           role="switch"
           aria-checked={item.checked}
+          disabled={item.disabled || item.isLoading}
+          aria-busy={item.isLoading || undefined}
           aria-label={`${item.label} ${item.checked ? '켜짐' : '꺼짐'}`}
           className={clsx(
             styles.switchTrack,
             item.checked ? styles.switchTrackOn : styles.switchTrackOff
           )}
-          onClick={() => item.onToggle(!item.checked)}
+          onClick={() => {
+            if (!item.disabled && !item.isLoading) item.onToggle(!item.checked);
+          }}
         >
           <span
             className={clsx(
@@ -67,7 +72,9 @@ export function MenuItem({ item, onClick }: MenuItemProps) {
               item.checked ? styles.switchThumbOn : styles.switchThumbOff
             )}
             aria-hidden
-          />
+          >
+            {item.isLoading && <span className={styles.pendingSpinner} />}
+          </span>
         </button>
       </div>
     );
@@ -77,7 +84,9 @@ export function MenuItem({ item, onClick }: MenuItemProps) {
     <div
       className={`${styles.item} ${styles.itemClickable}`}
       role="button"
-      tabIndex={0}
+      tabIndex={item.disabled || item.isLoading ? -1 : 0}
+      aria-disabled={item.disabled || item.isLoading || undefined}
+      aria-busy={item.isLoading || undefined}
       onClick={handleClick}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -94,7 +103,11 @@ export function MenuItem({ item, onClick }: MenuItemProps) {
           {item.type === 'navigation' && item.value && (
             <span className={styles.navValue}>{item.value}</span>
           )}
-          <ChevronRightIcon size={20} className={styles.pushIcon} />
+          {item.isLoading ? (
+            <span className={styles.pendingSpinner} aria-hidden />
+          ) : (
+            <ChevronRightIcon size={20} className={styles.pushIcon} />
+          )}
         </span>
       )}
     </div>

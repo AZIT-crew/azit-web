@@ -1,5 +1,6 @@
 import * as RadixAlertDialog from '@radix-ui/react-alert-dialog';
 import type { ReactNode } from 'react';
+import { loadingContent, loadingSpinner } from '../button/Button.css';
 import * as styles from './AlertDialog.css';
 
 export interface AlertDialogProps {
@@ -12,6 +13,8 @@ export interface AlertDialogProps {
   singleButton?: boolean;
   children?: ReactNode;
   actionDisabled?: boolean;
+  actionLoading?: boolean;
+  closeOnAction?: boolean;
   actionVariant?: 'default' | 'danger';
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -27,6 +30,8 @@ export function AlertDialog({
   singleButton = false,
   children,
   actionDisabled = false,
+  actionLoading = false,
+  closeOnAction = true,
   actionVariant = 'default',
   open,
   onOpenChange,
@@ -55,7 +60,12 @@ export function AlertDialog({
           <div className={styles.buttonContainer}>
             {!singleButton && (
               <RadixAlertDialog.Cancel asChild>
-                <button className={styles.cancelButton}>{cancelText}</button>
+                <button
+                  className={styles.cancelButton}
+                  disabled={actionLoading}
+                >
+                  {cancelText}
+                </button>
               </RadixAlertDialog.Cancel>
             )}
 
@@ -70,10 +80,21 @@ export function AlertDialog({
                         ? styles.actionButtonDanger
                         : styles.actionButton
                 }
-                disabled={actionDisabled}
-                onClick={onAction}
+                disabled={actionDisabled || actionLoading}
+                aria-busy={actionLoading || undefined}
+                onClick={(event) => {
+                  if (!closeOnAction) event.preventDefault();
+                  onAction?.();
+                }}
               >
-                {actionText}
+                {actionLoading ? (
+                  <span className={loadingContent}>
+                    <span className={loadingSpinner} aria-hidden="true" />
+                    {actionText}
+                  </span>
+                ) : (
+                  actionText
+                )}
               </button>
             </RadixAlertDialog.Action>
           </div>

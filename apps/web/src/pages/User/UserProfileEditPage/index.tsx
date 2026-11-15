@@ -5,9 +5,16 @@ import { AddImageIcon } from '@azit/design-system/icon';
 import { Input } from '@azit/design-system/input';
 import { AppScreen } from '@stackflow/plugin-basic-ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
+import { crewKeys } from '@/entities/Crew/api/keys';
+import { scheduleKeys } from '@/entities/Schedule/api/keys';
 import { userQueries } from '@/entities/User/api/queries';
+import type { MyInfoResult } from '@/entities/User/model';
+import {
+  MAX_NICKNAME_LENGTH,
+  nicknameSchema,
+} from '@/entities/User/model/profile';
 import { RoundProfileImage } from '@/entities/User/ui/RoundProfileImage';
 
 import { BusinessError } from '@/shared/api/apiHandler';
@@ -16,12 +23,14 @@ import { DEFAULT_PROFILE_IMAGE_BASE_URL } from '@/shared/constants/url';
 import { bridge } from '@/shared/lib/bridge';
 import { base64ToBlob } from '@/shared/lib/image';
 import { useStack } from '@/shared/lib/stackflow/useStack';
+import { useLimitedTextInput } from '@/shared/lib/useLimitedTextInput';
 import { BackButton } from '@/shared/ui/button';
+import { QueryErrorFallback } from '@/shared/ui/error';
 import { AppLayout } from '@/shared/ui/layout';
+import { PageLoader } from '@/shared/ui/loading/PageLoader';
 import { toastError, toastSuccess } from '@/shared/ui/toast';
 
 import * as styles from './index.css';
-import { MAX_NICKNAME_LENGTH, nicknameSchema } from './profileEditForm';
 import { ProfileImagePickerBottomSheet } from './ProfileImagePickerBottomSheet';
 
 const DEFAULT_PROFILE_IMAGE_COUNT = 6;
@@ -32,57 +41,64 @@ const getRandomDefaultProfileImageUrl = () => {
 };
 const MAX_FILE_SIZE = 3 * 1024 * 1024;
 
-export function UserProfileEditPage() {
-  const { data: myInfoData } = useQuery(userQueries.myInfoQuery());
-  const myInfo = myInfoData?.result;
+function ProfileEditForm({ myInfo }: { myInfo: MyInfoResult }) {
   const queryClient = useQueryClient();
   const { pop } = useStack();
 
-  const [nickname, setNickname] = useState<string | null>(null);
+  const { reset: resetNickname, ...nicknameInput } = useLimitedTextInput({
+    maxLength: MAX_NICKNAME_LENGTH,
+    initialValue: myInfo.nickname,
+  });
   const [nicknameError, setNicknameError] = useState<string | null>(null);
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
   const [isPickerLoading, setIsPickerLoading] = useState(false);
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
+  const submittingRef = useRef(false);
 
   const { mutate: updateProfile, isPending } = useMutation({
     ...userQueries.updateMyProfile,
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: userQueries.myInfoKey(),
-      });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: userQueries.myInfoKey(),
+        }),
+        queryClient.invalidateQueries({ queryKey: crewKeys.membersAll() }),
+        queryClient.invalidateQueries({ queryKey: scheduleKeys.all }),
+      ]);
       toastSuccess('프로필이 수정되었습니다.');
       pop('Mypage');
     },
     onError: (error) => {
-      if (error instanceof BusinessError) {
+      if (error instanceof BusinessError && error.code.includes('NICKNAME')) {
         setNicknameError(error.message);
         return;
       }
       toastError(
-        error instanceof Error ? error.message : '요청에 실패했습니다.'
+        error instanceof BusinessError
+          ? error.message
+          : '프로필 수정에 실패했습니다. 다시 시도해주세요.'
       );
+    },
+    onSettled: () => {
+      submittingRef.current = false;
     },
   });
 
-  const currentNickname = nickname ?? myInfo?.nickname ?? '';
+  const currentNickname = nicknameInput.value;
+  const isBusy = isPending || isPickerLoading;
 
   const handleNicknameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setNickname(
-      value.length > MAX_NICKNAME_LENGTH
-        ? value.substring(0, MAX_NICKNAME_LENGTH)
-        : value
-    );
+    nicknameInput.onChange(e);
     if (nicknameError) setNicknameError(null);
   };
 
   const handleNicknameRemove = () => {
-    setNickname('');
+    resetNickname();
     setNicknameError(null);
   };
 
   const handleProfileImageBadgeClick = () => {
-    if (isPickerLoading) return;
+    if (isBusy || submittingRef.current) return;
     setIsBottomSheetOpen(true);
   };
 
@@ -120,7 +136,7 @@ export function UserProfileEditPage() {
   };
 
   const handleSubmit = () => {
-    if (isPending) return;
+    if (isBusy || submittingRef.current) return;
 
     const validation = nicknameSchema.safeParse(currentNickname);
     if (!validation.success) {
@@ -128,6 +144,7 @@ export function UserProfileEditPage() {
       return;
     }
 
+    submittingRef.current = true;
     updateProfile({
       nickname: currentNickname,
       imageUrl: profileImageUrl ?? myInfo?.profileImageUrl ?? '',
@@ -138,7 +155,10 @@ export function UserProfileEditPage() {
     <AppScreen backgroundColor={vars.colors.white}>
       <AppLayout>
         <div className={styles.headerWrapper}>
-          <Header left={<BackButton />} center="프로필 수정" />
+          <Header
+            left={<BackButton disabled={isBusy} />}
+            center="프로필 수정"
+          />
         </div>
         <div className={styles.mainContainer}>
           <div className={styles.profileImageWrapper}>
@@ -147,7 +167,10 @@ export function UserProfileEditPage() {
               size={96}
               className={styles.profileImage}
             />
-            <div
+            <button
+              type="button"
+              aria-label="프로필 이미지 변경"
+              disabled={isBusy}
               className={
                 styles.editBadgeWrapper[isPickerLoading ? 'loading' : 'idle']
               }
@@ -157,16 +180,19 @@ export function UserProfileEditPage() {
               <div className={styles.editBadgeInner}>
                 <AddImageIcon size={16} color="inherit" />
               </div>
-            </div>
+            </button>
           </div>
           <div className={styles.nicknameSection}>
             <span className={styles.nicknameLabel}>닉네임</span>
             <Input
-              value={currentNickname}
+              {...nicknameInput}
+              readOnly={isBusy}
               placeholder="닉네임을 입력해주세요"
               onChange={handleNicknameChange}
               onRemove={
-                currentNickname.length > 0 ? handleNicknameRemove : undefined
+                !isBusy && currentNickname.length > 0
+                  ? handleNicknameRemove
+                  : undefined
               }
               state={nicknameError ? 'error' : undefined}
             >
@@ -178,7 +204,12 @@ export function UserProfileEditPage() {
           </div>
         </div>
         <div className={styles.footerWrapper}>
-          <Button state="active" onClick={handleSubmit}>
+          <Button
+            state="active"
+            onClick={handleSubmit}
+            disabled={!currentNickname || isPickerLoading}
+            isLoading={isPending}
+          >
             수정하기
           </Button>
         </div>
@@ -190,6 +221,30 @@ export function UserProfileEditPage() {
         onSelectCamera={() => handlePickImage('camera')}
         onSelectDefault={handleSelectDefault}
       />
+    </AppScreen>
+  );
+}
+
+export function UserProfileEditPage() {
+  const query = useQuery({ ...userQueries.myInfoQuery(), throwOnError: false });
+  if (!query.isError && query.data?.result)
+    return <ProfileEditForm myInfo={query.data.result} />;
+  return (
+    <AppScreen backgroundColor={vars.colors.white}>
+      <AppLayout>
+        <Header left={<BackButton />} center="프로필 수정" />
+        {query.isPending ? (
+          <PageLoader />
+        ) : (
+          <QueryErrorFallback
+            message="프로필을 불러오지 못했어요"
+            onRetry={() => {
+              void query.refetch();
+            }}
+            isRetrying={query.isFetching}
+          />
+        )}
+      </AppLayout>
     </AppScreen>
   );
 }

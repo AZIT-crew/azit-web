@@ -64,6 +64,7 @@ export function LoginRedirectPage() {
             className={styles.logoImage}
           />
           <p className={styles.statusText}>잘못된 접근입니다</p>
+          <Button onClick={handleRetry}>돌아가기</Button>
         </div>
       );
     }

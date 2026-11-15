@@ -1,10 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import type { AddressFormValues } from '@/features/Address/model/types';
+
+import { isValidAddress } from '@/entities/Address/model/validation';
 
 import { useAddressSelectionStore } from '@/shared/store/addressSelection';
 
 export function useAddressForm(initialData?: Partial<AddressFormValues>) {
+  const formKey = useId();
+  const hydrated = useRef(false);
   const [formValues, setFormValues] = useState<AddressFormValues>({
     recipientName: '',
     phoneNumber: '',
@@ -15,15 +19,13 @@ export function useAddressForm(initialData?: Partial<AddressFormValues>) {
   });
 
   useEffect(() => {
-    if (initialData) {
+    if (initialData && !hydrated.current) {
+      hydrated.current = true;
       setFormValues((prev) => ({ ...prev, ...initialData }));
     }
   }, [initialData]);
 
-  const isValidForm = useMemo(() => {
-    const { isDefault: _isDefault, ...textFields } = formValues;
-    return Object.values(textFields).every((v) => v.trim() !== '');
-  }, [formValues]);
+  const isValidForm = isValidAddress(formValues);
 
   // 외부에서 데이터를 주입받아 폼을 초기화해야 할 때 사용
   const resetForm = (data: Partial<AddressFormValues>) => {
@@ -36,20 +38,26 @@ export function useAddressForm(initialData?: Partial<AddressFormValues>) {
   const clearAddress = useAddressSelectionStore((state) => state.clearAddress);
 
   useEffect(() => {
-    if (selectedAddress) {
+    if (selectedAddress?.formKey === formKey) {
       setFormValues((prev) => ({
         ...prev,
         zipcode: selectedAddress.zipcode,
         baseAddress: selectedAddress.baseAddress,
+        detailAddress:
+          prev.baseAddress === selectedAddress.baseAddress &&
+          prev.zipcode === selectedAddress.zipcode
+            ? prev.detailAddress
+            : '',
       }));
       clearAddress();
     }
-  }, [selectedAddress, clearAddress]);
+  }, [selectedAddress, clearAddress, formKey]);
 
   return {
     formValues,
     setFormValues,
     isValidForm,
     resetForm,
+    formKey,
   };
 }

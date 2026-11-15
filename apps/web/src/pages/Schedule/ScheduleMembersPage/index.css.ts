@@ -1,4 +1,14 @@
+import { typography, vars } from '@azit/design-system';
 import { style } from '@vanilla-extract/css';
+
+export const status = style([
+  typography.body.b2,
+  {
+    color: vars.colors.gray60,
+    padding: 24,
+    textAlign: 'center',
+  },
+]);
 
 export const contentWrapper = style({
   flex: 1,

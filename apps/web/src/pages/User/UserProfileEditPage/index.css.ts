@@ -28,6 +28,9 @@ export const profileImage = style({
 });
 
 const editBadgeWrapperBase = style({
+  border: 'none',
+  padding: 0,
+  background: 'transparent',
   gridColumn: '1',
   gridRow: '1',
   display: 'inline-grid',

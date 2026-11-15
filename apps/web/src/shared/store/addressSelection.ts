@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 export interface SelectedAddress {
+  formKey: string;
   zipcode: string;
   baseAddress: string;
   extraAddress: string;

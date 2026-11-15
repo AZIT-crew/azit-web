@@ -1,7 +1,6 @@
 import type { RequiredDeep } from 'type-fest';
 
 import type { components, operations } from '@/shared/api/apiTypes';
-import type { ScheduleCalendarItem } from '@/shared/types/schedule';
 
 /** API 스키마 기준 Response 타입만 정의 */
 
@@ -17,13 +16,18 @@ export type OptionalTermsResponse =
   components['schemas']['OptionalTermsResponse'];
 export type UpdateOptionalTermsRequest =
   components['schemas']['UpdateOptionalTermsRequest'];
+export type CrewNotificationSetting =
+  components['schemas']['CrewNotificationSettingResponse'];
+export type UpdateCrewNotificationSettingRequest =
+  components['schemas']['UpdateCrewNotificationSettingRequest'];
 export type CrewMemberListResponse =
   components['schemas']['CrewMemberListResponse'];
 export type CrewMemberDetailResponse = RequiredDeep<
   components['schemas']['CrewMemberDetailResponse']
 >;
 
-export type MyAttendanceCalendarResponse = ScheduleCalendarItem[];
+export type MyAttendanceCalendarResponse =
+  components['schemas']['MyAttendanceMonthlyListResponse'][];
 export type MyAttendanceCalendarRequest = NonNullable<
   operations['getMyAttendancesForCalendar']['parameters']['query']
 >;

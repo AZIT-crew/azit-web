@@ -21,7 +21,9 @@ export const addressQueries = {
     queryOptions({
       queryKey: [...addressQueries.listKey()],
       queryFn: () => getDeliveryAddresses(),
-      staleTime: 1000 * 60 * 60 * 3,
+      staleTime: 0,
+      retry: false,
+      throwOnError: false,
     }),
 };
 

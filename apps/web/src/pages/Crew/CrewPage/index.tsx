@@ -11,12 +11,13 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { josa } from 'es-hangul';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { useFlow } from '@/app/routes/stackflow';
 
 import { crewQueries } from '@/features/Crew/api/queries';
 
+import { scheduleKeys } from '@/entities/Schedule/api/keys';
 import { userQueries } from '@/entities/User/api/queries';
 
 import {
@@ -28,7 +29,7 @@ import { bridge } from '@/shared/lib/bridge';
 import { copyToClipboard } from '@/shared/lib/clipboard';
 import { AsyncBoundary } from '@/shared/ui/async-boundary';
 import { BackButton } from '@/shared/ui/button';
-import { PageErrorFallback } from '@/shared/ui/error';
+import { PageErrorFallback, QueryErrorFallback } from '@/shared/ui/error';
 import { AppLayout } from '@/shared/ui/layout';
 import { PageLoader } from '@/shared/ui/loading/PageLoader';
 import { MenuSection } from '@/shared/ui/menu';
@@ -39,12 +40,16 @@ import { useCrewMenu } from './useCrewMenu';
 function CrewPageContent({ params }: { params?: { id?: string } }) {
   const [dissolveInput, setDissolveInput] = useState('');
   const [isReissueOpen, setIsReissueOpen] = useState(false);
+  const [isDissolveOpen, setIsDissolveOpen] = useState(false);
+  const [isExitOpen, setIsExitOpen] = useState(false);
+  const submittingRef = useRef(false);
 
   const crewId = Number(params?.id) || 0;
   const { pop } = useFlow();
   const queryClient = useQueryClient();
 
-  const { data: myCrewsData } = useSuspenseQuery(userQueries.myCrewsQuery());
+  const crewsQuery = useSuspenseQuery(userQueries.myCrewsQuery());
+  const myCrewsData = crewsQuery.data;
   const crew = myCrewsData?.find((c) => c.crewId === crewId) ?? null;
 
   const isLeader = crew?.memberRole === MEMBER_ROLE.LEADER;
@@ -52,32 +57,73 @@ function CrewPageContent({ params }: { params?: { id?: string } }) {
   const menuSections = useCrewMenu(crew?.memberRole ?? 'MEMBER', crewId, () =>
     setIsReissueOpen(true)
   );
+  const refreshCrews = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: userQueries.myCrewsKey() }),
+      queryClient.invalidateQueries({ queryKey: userQueries.joinedCrewsKey() }),
+      queryClient.invalidateQueries({ queryKey: scheduleKeys.memberListKey() }),
+      queryClient.invalidateQueries({
+        queryKey: scheduleKeys.checkInStatusKey(),
+      }),
+      queryClient.invalidateQueries({ queryKey: crewQueries.crewInfoKey() }),
+    ]);
+  const release = () => {
+    submittingRef.current = false;
+  };
+  const submit = (action: () => void) => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    action();
+  };
 
-  const { mutate: dissolveCrew } = useMutation({
+  const dissolveMutation = useMutation({
     ...crewQueries.dissolveCrew,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: userQueries.myCrewsKey() });
+    onSuccess: async () => {
+      setIsDissolveOpen(false);
       pop();
+      await refreshCrews();
     },
+    onSettled: release,
   });
 
-  const { mutate: exitCrew } = useMutation({
+  const exitMutation = useMutation({
     ...crewQueries.exitCrew,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: userQueries.myCrewsKey() });
+    onSuccess: async () => {
+      setIsExitOpen(false);
       pop();
+      await refreshCrews();
     },
+    onSettled: release,
   });
 
-  const { mutate: reissueInvitationCode } = useMutation({
+  const reissueMutation = useMutation({
     ...crewQueries.reissueInvitationCode,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: userQueries.myCrewsKey() });
+    onSuccess: async () => {
+      await refreshCrews();
       setIsReissueOpen(false);
     },
+    onSettled: release,
   });
+  const isBusy =
+    dissolveMutation.isPending ||
+    exitMutation.isPending ||
+    reissueMutation.isPending;
 
-  if (!crew) return null;
+  if (!crew || crewsQuery.isError)
+    return (
+      <AppScreen>
+        <AppLayout>
+          <Header left={<BackButton />} center="나의 크루" />
+          <QueryErrorFallback
+            message="크루 정보를 확인할 수 없어요"
+            onRetry={() => {
+              void crewsQuery.refetch();
+            }}
+            isRetrying={crewsQuery.isFetching}
+          />
+        </AppLayout>
+      </AppScreen>
+    );
 
   const onCopyCode = () => {
     if (crew.invitationCode) {
@@ -138,7 +184,7 @@ function CrewPageContent({ params }: { params?: { id?: string } }) {
                   </button>
                 </div>
               </div>
-              <div className={styles.menuSectionWrapper}>
+              <div className={styles.menuSectionWrapper} inert={isBusy}>
                 {menuSections.map((section) => (
                   <MenuSection key={section.id} section={section} />
                 ))}
@@ -150,9 +196,15 @@ function CrewPageContent({ params }: { params?: { id?: string } }) {
                 description={`새로운 초대코드가 생성되며\n기존 초대코드는 더 이상 사용할 수 없어요.`}
                 cancelText="취소하기"
                 actionText="재발급하기"
-                onAction={() => reissueInvitationCode({ crewId })}
+                onAction={() =>
+                  submit(() => reissueMutation.mutate({ crewId }))
+                }
+                actionLoading={reissueMutation.isPending}
+                closeOnAction={false}
                 open={isReissueOpen}
-                onOpenChange={setIsReissueOpen}
+                onOpenChange={(open) => {
+                  if (!isBusy) setIsReissueOpen(open);
+                }}
               >
                 <div className={styles.dissolveInputContainer}>
                   <p className={styles.reissueCodeGuide}>
@@ -169,7 +221,11 @@ function CrewPageContent({ params }: { params?: { id?: string } }) {
             {isLeader ? (
               <AlertDialog
                 trigger={
-                  <button type="button" className={styles.dissolveButton}>
+                  <button
+                    type="button"
+                    className={styles.dissolveButton}
+                    disabled={isBusy}
+                  >
                     크루 해산하기
                   </button>
                 }
@@ -179,7 +235,18 @@ function CrewPageContent({ params }: { params?: { id?: string } }) {
                 actionText="해산하기"
                 actionVariant="danger"
                 actionDisabled={dissolveInput !== crew.crewName}
-                onAction={() => dissolveCrew({ crewId })}
+                onAction={() =>
+                  submit(() => dissolveMutation.mutate({ crewId }))
+                }
+                actionLoading={dissolveMutation.isPending}
+                closeOnAction={false}
+                open={isDissolveOpen}
+                onOpenChange={(open) => {
+                  if (!isBusy) {
+                    setIsDissolveOpen(open);
+                    if (!open) setDissolveInput('');
+                  }
+                }}
               >
                 <div className={styles.dissolveInputContainer}>
                   <p className={styles.dissolveInputGuide}>
@@ -189,6 +256,7 @@ function CrewPageContent({ params }: { params?: { id?: string } }) {
                   <Input
                     placeholder="크루 이름을 정확히 입력해 주세요."
                     value={dissolveInput}
+                    readOnly={isBusy}
                     onChange={(e) => setDissolveInput(e.target.value)}
                   />
                 </div>
@@ -196,7 +264,11 @@ function CrewPageContent({ params }: { params?: { id?: string } }) {
             ) : (
               <AlertDialog
                 trigger={
-                  <button type="button" className={styles.dissolveButton}>
+                  <button
+                    type="button"
+                    className={styles.dissolveButton}
+                    disabled={isBusy}
+                  >
                     이 크루에서 나가기
                   </button>
                 }
@@ -204,7 +276,13 @@ function CrewPageContent({ params }: { params?: { id?: string } }) {
                 description={`크루 탈퇴 시 24시간 동안은\n동일한 크루에 다시 가입할 수 없어요.`}
                 cancelText="취소하기"
                 actionText="나가기"
-                onAction={() => exitCrew({ crewId })}
+                onAction={() => submit(() => exitMutation.mutate({ crewId }))}
+                actionLoading={exitMutation.isPending}
+                closeOnAction={false}
+                open={isExitOpen}
+                onOpenChange={(open) => {
+                  if (!isBusy) setIsExitOpen(open);
+                }}
               />
             )}
           </div>

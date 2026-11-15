@@ -4,13 +4,12 @@ import { postWithdraw } from '@/shared/auth/api/postWithdraw';
 import { useAuthStore } from '@/shared/store/auth';
 
 export const useWithdraw = () => {
-  const { setAccessToken, setIsInitialized } = useAuthStore();
+  const { clearSession } = useAuthStore();
   const { replace } = useFlow();
 
   const handleWithdraw = async () => {
     await postWithdraw();
-    setAccessToken(undefined);
-    setIsInitialized(false);
+    clearSession();
     replace('LoginPage', {}, { animate: false });
   };
 

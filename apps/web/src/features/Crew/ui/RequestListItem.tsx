@@ -1,5 +1,7 @@
 import { AlertDialog } from '@azit/design-system/alert-dialog';
+import { Button } from '@azit/design-system/button';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRef } from 'react';
 
 import { crewQueries } from '@/features/Crew/api/queries';
 import * as styles from '@/features/Crew/styles/RequestListItem.css';
@@ -22,33 +24,47 @@ export function RequestListItem({
   requestedAt,
 }: RequestListItemProps) {
   const queryClient = useQueryClient();
+  const submittingRef = useRef(false);
+  const release = () => {
+    submittingRef.current = false;
+  };
 
   const approveMutation = useMutation({
     ...crewQueries.approveJoinRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: crewQueries.joinRequestsKey(crewId),
-      });
-      queryClient.invalidateQueries({
-        queryKey: crewQueries.crewMembersKey(crewId),
-      });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: crewQueries.joinRequestsKey(crewId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: crewQueries.crewMembersKey(crewId),
+          refetchType: 'all',
+        }),
+      ]);
     },
+    onSettled: release,
   });
 
   const rejectMutation = useMutation({
     ...crewQueries.rejectJoinRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
         queryKey: crewQueries.joinRequestsKey(crewId),
       });
     },
+    onSettled: release,
   });
+  const isPending = approveMutation.isPending || rejectMutation.isPending;
 
   const handleApprove = () => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     approveMutation.mutate({ crewId, targetMemberId });
   };
 
   const handleReject = () => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     rejectMutation.mutate({ crewId, targetMemberId });
   };
 
@@ -80,29 +96,37 @@ export function RequestListItem({
       <div className={styles.buttonGroup}>
         <AlertDialog
           trigger={
-            <button
+            <Button
               type="button"
               className={styles.rejectButton}
-              disabled={rejectMutation.isPending}
+              size="small"
+              state="outline"
+              style={{ width: 64, height: 36, padding: '0 6px' }}
+              disabled={isPending}
+              isLoading={rejectMutation.isPending}
               aria-label="요청 거절"
             >
               거절
-            </button>
+            </Button>
           }
           title="가입 요청을 거절하시겠습니까?"
           actionText="거절"
           cancelText="취소"
           onAction={handleReject}
+          actionDisabled={isPending}
         />
-        <button
+        <Button
           type="button"
           className={styles.approveButton}
+          size="small"
+          style={{ width: 64, height: 36, padding: '0 6px' }}
           onClick={handleApprove}
-          disabled={approveMutation.isPending}
+          disabled={isPending}
+          isLoading={approveMutation.isPending}
           aria-label="요청 승인"
         >
           승인
-        </button>
+        </Button>
       </div>
     </article>
   );

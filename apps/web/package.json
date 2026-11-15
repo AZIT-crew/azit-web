@@ -8,8 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
-    "generate:api-types": "pnpx dotenv-cli -e .env -- sh -c 'openapi-typescript \"$API_SWAGGER_URL\" -o src/shared/api/apiTypes.ts'",
+    "typecheck": "tsc -b",
+    "generate:api-types": "dotenv -e .env.local -e .env -- sh -c 'openapi-typescript \"${API_SWAGGER_URL:-https://dev-api.azitcrew.com/v3/api-docs}\" -o src/shared/api/apiTypes.ts'",
     "test": "vitest run",
     "test:watch": "vitest"
   },

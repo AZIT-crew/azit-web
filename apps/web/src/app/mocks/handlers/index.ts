@@ -1,3 +1,4 @@
+import type { MockHandler } from '../api';
 import { addressHandlers } from './address';
 import { authHandlers } from './auth';
 import { crewHandlers } from './crew';
@@ -12,4 +13,4 @@ export const handlers = [
   ...scheduleHandlers,
   ...addressHandlers,
   ...locationHandlers,
-];
+] satisfies MockHandler[];

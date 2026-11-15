@@ -49,6 +49,23 @@ export const Outline: Story = {
   },
 };
 
+export const Loading: Story = {
+  args: {
+    width: '375px',
+    isLoading: true,
+    children: '등록하기',
+  },
+};
+
+export const LoadingOutline: Story = {
+  args: {
+    width: '375px',
+    state: 'outline',
+    isLoading: true,
+    children: '수정하기',
+  },
+};
+
 export const ActiveSmall: Story = {
   args: {
     size: 'small',

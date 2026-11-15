@@ -1,31 +1,29 @@
-import { http, HttpResponse } from 'msw';
-
-import { mockAddressList } from '../data/address';
+import { mockApi } from '../api';
+import { mockSuccess } from '../data/crew';
+import {
+  createMockAddress,
+  deleteMockAddress,
+  getMockAddresses,
+  updateMockAddress,
+} from '../state/addresses';
 
 export const addressHandlers = [
-  http.get('*/addresses', () => {
-    return HttpResponse.json(mockAddressList);
+  mockApi.get('/api/v1/addresses', () => {
+    return { ...mockSuccess, result: getMockAddresses() };
   }),
 
-  http.post('*/addresses', () => {
-    return HttpResponse.json({
-      code: 'SUCCESS',
-      message: '요청에 성공했습니다.',
-      result: { id: 3 },
-    });
+  mockApi.post('/api/v1/addresses', async ({ request }) => {
+    createMockAddress(await request.json());
+    return mockSuccess;
   }),
 
-  http.put('*/addresses/:id', () => {
-    return HttpResponse.json({
-      code: 'SUCCESS',
-      message: '요청에 성공했습니다.',
-    });
+  mockApi.put('/api/v1/addresses/{addressId}', async ({ params, request }) => {
+    updateMockAddress(Number(params.addressId), await request.json());
+    return mockSuccess;
   }),
 
-  http.delete('*/addresses/:id', () => {
-    return HttpResponse.json({
-      code: 'SUCCESS',
-      message: '요청에 성공했습니다.',
-    });
+  mockApi.delete('/api/v1/addresses/{addressId}', ({ params }) => {
+    deleteMockAddress(Number(params.addressId));
+    return mockSuccess;
   }),
 ];

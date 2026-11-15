@@ -2,11 +2,13 @@ import { AlertDialog } from '@azit/design-system/alert-dialog';
 import { Chip } from '@azit/design-system/chip';
 import { ChevronRightIcon, PlusIcon, XIcon } from '@azit/design-system/icon';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRef, useState } from 'react';
 
-import { crewQueries } from '@/features/Crew/api/queries';
-
+import { crewEntityQueries } from '@/entities/Crew/api/queries';
 import { userQueries } from '@/entities/User/api/queries';
 import type { MyCrewResult } from '@/entities/User/model';
+
+import { MAX_CREW_COUNT } from '@/shared/constants/crew';
 
 import * as styles from '../styles/MyCrewInfoSection.css';
 
@@ -22,13 +24,19 @@ export function MyCrewInfoSection({
   onCreateNewCrew,
 }: MyCrewInfoSectionProps) {
   const queryClient = useQueryClient();
+  const submittingRef = useRef(false);
+  const [cancelCrewId, setCancelCrewId] = useState<number | null>(null);
 
   const deleteMutation = useMutation({
-    ...crewQueries.deleteJoinRequest,
-    onSuccess: () => {
-      queryClient.invalidateQueries({
+    ...crewEntityQueries.deleteJoinRequest,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
         queryKey: userQueries.myCrewsKey(),
       });
+      setCancelCrewId(null);
+    },
+    onSettled: () => {
+      submittingRef.current = false;
     },
   });
 
@@ -40,7 +48,11 @@ export function MyCrewInfoSection({
           type="button"
           className={styles.newCrewButton}
           onClick={onCreateNewCrew}
-          disabled={crews.length >= 3}
+          disabled={
+            crews.filter((crew) =>
+              ['JOINED', 'REQUESTED'].includes(crew.memberStatus)
+            ).length >= MAX_CREW_COUNT
+          }
         >
           <span className={styles.newCrewText}>새로운 크루</span>
           <PlusIcon size={16} className={styles.newCrewIcon} />
@@ -52,8 +64,9 @@ export function MyCrewInfoSection({
           {crews.map((crew) => {
             const isJoined = crew.memberStatus === 'JOINED';
             const isRequested = crew.memberStatus === 'REQUESTED';
+            const isRejected = crew.memberStatus === 'REJECTED';
 
-            if (!isJoined && !isRequested) return null;
+            if (!isJoined && !isRequested && !isRejected) return null;
 
             const cardContent = (
               <>
@@ -86,13 +99,13 @@ export function MyCrewInfoSection({
                       </Chip>
                     ) : (
                       <Chip className={styles.roleChip} type="gray">
-                        승인 대기중
+                        {isRejected ? '가입 거절' : '승인 대기중'}
                       </Chip>
                     )}
                   </div>
                 </div>
 
-                {isJoined ? (
+                {isJoined || isRejected ? (
                   <ChevronRightIcon
                     size={20}
                     className={styles.chevronIcon}
@@ -108,14 +121,16 @@ export function MyCrewInfoSection({
               </>
             );
 
-            if (isJoined) {
+            if (isJoined || isRejected) {
               return (
                 <button
                   key={crew.crewId}
                   type="button"
                   className={styles.crewCard}
-                  onClick={() => onNavigateToCrew(crew.crewId)}
-                  aria-label={`${crew.crewName} 크루 페이지로 이동`}
+                  onClick={() =>
+                    isJoined ? onNavigateToCrew(crew.crewId) : onCreateNewCrew()
+                  }
+                  aria-label={`${crew.crewName} ${isJoined ? '크루 페이지로 이동' : '가입 거절, 다시 신청'}`}
                 >
                   {cardContent}
                 </button>
@@ -125,6 +140,11 @@ export function MyCrewInfoSection({
             return (
               <AlertDialog
                 key={crew.crewId}
+                open={cancelCrewId === crew.crewId}
+                onOpenChange={(open) => {
+                  if (!submittingRef.current)
+                    setCancelCrewId(open ? crew.crewId : null);
+                }}
                 trigger={
                   <button
                     type="button"
@@ -139,7 +159,13 @@ export function MyCrewInfoSection({
                 description={`취소 시 대기 상태가 해제되며,\n가입을 원하실 경우 다시 신청해야 해요.`}
                 cancelText="닫기"
                 actionText="취소하기"
-                onAction={() => deleteMutation.mutate({ crewId: crew.crewId })}
+                closeOnAction={false}
+                actionLoading={deleteMutation.isPending}
+                onAction={() => {
+                  if (submittingRef.current) return;
+                  submittingRef.current = true;
+                  deleteMutation.mutate({ crewId: crew.crewId });
+                }}
               />
             );
           })}

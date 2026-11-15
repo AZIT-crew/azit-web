@@ -16,7 +16,9 @@ import { useCalendar } from '@/shared/lib/useCalendar';
 import { scrollContainer } from '@/shared/styles/container.css';
 import { BackButton } from '@/shared/ui/button';
 import { ScheduleCalendar } from '@/shared/ui/calendar/ui/ScheduleCalendar';
+import { QueryErrorFallback } from '@/shared/ui/error';
 import { AppLayout } from '@/shared/ui/layout';
+import { PageLoader } from '@/shared/ui/loading/PageLoader';
 
 import * as styles from './index.css';
 
@@ -33,15 +35,19 @@ export function CrewAttendancePage({ params }: { params?: { id?: string } }) {
 
   const yearMonth = formatDate(viewDate, 'YYYY-MM');
 
-  const { data: myAttendanceCalendarData = [] } = useQuery({
+  const calendarQuery = useQuery({
     ...userQueries.getMyAttendanceCalendarQuery({ yearMonth, crewId }),
-    enabled: !!yearMonth,
+    enabled: crewId > 0,
+    throwOnError: false,
   });
 
-  const { data: myAttendanceData } = useQuery({
+  const attendanceQuery = useQuery({
     ...userQueries.getMyAttendanceQuery({ yearMonth, crewId }),
-    enabled: !!yearMonth,
+    enabled: crewId > 0,
+    throwOnError: false,
   });
+  const myAttendanceCalendarData = calendarQuery.data ?? [];
+  const myAttendanceData = attendanceQuery.data;
 
   const totalAttendanceLogs = myAttendanceData?.attendanceLogs ?? [];
   const totalPoints = myAttendanceData?.totalPoints ?? 0;
@@ -73,45 +79,70 @@ export function CrewAttendancePage({ params }: { params?: { id?: string } }) {
                   explicitViewDate={viewDate}
                   onChangeExplicitViewDate={setViewDate}
                 />
-                <div className={styles.statsCardWrapper}>
-                  <div className={styles.statsCard}>
-                    <div className={styles.statItem}>
-                      <LightningIcon size={24} color="primary" />
-                      <span className={styles.statLabel}>정기런</span>
-                      <span className={styles.statValue}>
-                        {regularRunCount}회
-                      </span>
-                    </div>
-                    <div className={styles.statItem}>
-                      <LightningIcon
-                        size={24}
-                        color="inherit"
-                        style={{ color: styles.lightIconColor }}
-                      />
-                      <span className={styles.statLabel}>번개런</span>
-                      <span className={styles.statValue}>
-                        {lightningRunCount}회
-                      </span>
-                    </div>
-                    <div className={styles.statItem}>
-                      <XIcon size={24} style={{ color: styles.xIconColor }} />
-                      <span className={styles.statLabel}>결석</span>
-                      <span className={styles.statValue}>{absentCount}회</span>
-                    </div>
-                    <div className={styles.statItem}>
-                      <PointCoinIcon size={24} />
-                      <span className={styles.statLabel}>포인트</span>
-                      <span className={styles.statValue}>
-                        {totalPoints.toLocaleString('ko-KR')}P
-                      </span>
+                {calendarQuery.isError && (
+                  <QueryErrorFallback
+                    message="출석 달력을 불러오지 못했어요"
+                    onRetry={() => {
+                      void calendarQuery.refetch();
+                    }}
+                    isRetrying={calendarQuery.isFetching}
+                  />
+                )}
+                {!attendanceQuery.isPending && !attendanceQuery.isError && (
+                  <div className={styles.statsCardWrapper}>
+                    <div className={styles.statsCard}>
+                      <div className={styles.statItem}>
+                        <LightningIcon size={24} color="primary" />
+                        <span className={styles.statLabel}>정기런</span>
+                        <span className={styles.statValue}>
+                          {regularRunCount}회
+                        </span>
+                      </div>
+                      <div className={styles.statItem}>
+                        <LightningIcon
+                          size={24}
+                          color="inherit"
+                          style={{ color: styles.lightIconColor }}
+                        />
+                        <span className={styles.statLabel}>번개런</span>
+                        <span className={styles.statValue}>
+                          {lightningRunCount}회
+                        </span>
+                      </div>
+                      <div className={styles.statItem}>
+                        <XIcon size={24} style={{ color: styles.xIconColor }} />
+                        <span className={styles.statLabel}>결석</span>
+                        <span className={styles.statValue}>
+                          {absentCount}회
+                        </span>
+                      </div>
+                      <div className={styles.statItem}>
+                        <PointCoinIcon size={24} />
+                        <span className={styles.statLabel}>포인트</span>
+                        <span className={styles.statValue}>
+                          {totalPoints.toLocaleString('ko-KR')}P
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </>
             }
             scheduleContent={
               <>
-                <AttendanceRecordList records={totalAttendanceLogs} />
+                {attendanceQuery.isError ? (
+                  <QueryErrorFallback
+                    message="출석 로그를 불러오지 못했어요"
+                    onRetry={() => {
+                      void attendanceQuery.refetch();
+                    }}
+                    isRetrying={attendanceQuery.isFetching}
+                  />
+                ) : attendanceQuery.isPending ? (
+                  <PageLoader />
+                ) : (
+                  <AttendanceRecordList records={totalAttendanceLogs} />
+                )}
               </>
             }
           />

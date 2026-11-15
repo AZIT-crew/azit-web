@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useFlow } from '@/app/routes/stackflow';
 
 import { BusinessError } from '@/shared/api/apiHandler';
 import { postLinkSocialAccount } from '@/shared/auth/api/postLinkSocialAccount';
 import { postSocialLogin } from '@/shared/auth/api/postSocialLogin';
+import { getAuthDestination } from '@/shared/auth/lib/navigateByAuthStatus';
 import { KAKAO_LINK_ACCOUNT_STATE } from '@/shared/constants/auth';
 import { getQueryParam } from '@/shared/lib/url';
 import { useAuthStore } from '@/shared/store/auth';
@@ -30,7 +31,8 @@ export const useKakaoCode = ({
   const [error, setError] = useState(false);
   const [invalidAccess, setInvalidAccess] = useState(false);
 
-  const { setAccessToken } = useAuthStore();
+  const { setSession } = useAuthStore();
+  const startedRef = useRef(false);
   const { replace } = useFlow();
 
   useEffect(() => {
@@ -41,6 +43,9 @@ export const useKakaoCode = ({
       setInvalidAccess(true);
       return;
     }
+
+    if (startedRef.current) return;
+    startedRef.current = true;
 
     if (state === KAKAO_LINK_ACCOUNT_STATE) {
       linkAccount(code);
@@ -58,20 +63,7 @@ export const useKakaoCode = ({
         authorizationCode: code,
       });
 
-      const { accessToken, status } = response.result;
-      setAccessToken(accessToken);
-
-      switch (status) {
-        case 'PENDING_TERMS':
-          replace('OnboardingTermAgreePage', {}, { animate: false });
-          break;
-        case 'PENDING_ONBOARDING':
-          replace('OnboardingPage', {}, { animate: false });
-          break;
-        case 'ACTIVE':
-          replace('HomePage', {}, { animate: false });
-          break;
-      }
+      setSession(response.result, getAuthDestination(response.result.status));
     } catch (err) {
       setError(true);
       console.error('Login failed:', err);

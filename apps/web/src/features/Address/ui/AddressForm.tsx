@@ -1,8 +1,11 @@
 import { Button } from '@azit/design-system/button';
 import { Input } from '@azit/design-system/input';
 
+import { formatPhoneNumber } from '@/features/Address/model/phoneNumber';
 import type { AddressFormValues } from '@/features/Address/model/types';
 import * as styles from '@/features/Address/styles/AddressRegisterForm.css';
+
+import { ADDRESS_PHONE_PATTERN } from '@/entities/Address/model/validation';
 
 export interface AddressFormProps {
   formId: string;
@@ -10,16 +13,8 @@ export interface AddressFormProps {
   onValuesChange: (values: AddressFormValues) => void;
   onAddressSearchClick: () => void;
   onSubmit: (e: React.FormEvent) => void;
+  disabled?: boolean;
 }
-
-const formatPhoneNumber = (raw: string) => {
-  const digits = raw.replace(/\D/g, '');
-  const sliced = digits.slice(0, 11);
-
-  if (sliced.length <= 3) return sliced;
-  if (sliced.length <= 7) return `${sliced.slice(0, 3)}-${sliced.slice(3)}`;
-  return `${sliced.slice(0, 3)}-${sliced.slice(3, 7)}-${sliced.slice(7)}`;
-};
 
 export function AddressForm({
   formId,
@@ -27,6 +22,7 @@ export function AddressForm({
   onValuesChange,
   onAddressSearchClick,
   onSubmit,
+  disabled = false,
 }: AddressFormProps) {
   const handleRecipientNameChange = (value: string) => {
     onValuesChange({ ...values, recipientName: value });
@@ -51,11 +47,12 @@ export function AddressForm({
   return (
     <form id={formId} className={styles.form} onSubmit={onSubmit}>
       <div className={styles.section}>
-        <label className={styles.label} htmlFor="recipient-name">
+        <label className={styles.label} htmlFor={`${formId}-recipient-name`}>
           수령인
         </label>
         <Input
-          id="recipient-name"
+          id={`${formId}-recipient-name`}
+          readOnly={disabled}
           className={styles.inputBase}
           value={values.recipientName}
           onChange={(e) => handleRecipientNameChange(e.target.value)}
@@ -64,19 +61,25 @@ export function AddressForm({
       </div>
 
       <div className={styles.section}>
-        <label className={styles.label} htmlFor="phone-number">
+        <label className={styles.label} htmlFor={`${formId}-phone-number`}>
           연락처
         </label>
         <Input
-          id="phone-number"
+          id={`${formId}-phone-number`}
+          readOnly={disabled}
           type="tel"
           inputMode="numeric"
-          pattern="[0-9\-]*"
+          pattern={ADDRESS_PHONE_PATTERN.source}
           className={styles.inputBase}
           value={values.phoneNumber}
           onChange={(e) => handlePhoneNumberChange(e.target.value)}
           placeholder="010-0000-0000"
-        />
+        >
+          {values.phoneNumber &&
+          !ADDRESS_PHONE_PATTERN.test(values.phoneNumber) ? (
+            <Input.Description left="연락처를 끝까지 입력해주세요" />
+          ) : null}
+        </Input>
       </div>
 
       <div className={styles.section}>
@@ -95,6 +98,7 @@ export function AddressForm({
             size="medium"
             className={styles.addressSearchButton}
             onClick={onAddressSearchClick}
+            disabled={disabled}
           >
             주소 찾기
           </Button>
@@ -108,6 +112,7 @@ export function AddressForm({
         />
         <Input
           className={styles.inputBase}
+          readOnly={disabled}
           value={values.detailAddress}
           onChange={(e) => handleDetailAddressChange(e.target.value)}
           placeholder="상세 주소를 입력해주세요"

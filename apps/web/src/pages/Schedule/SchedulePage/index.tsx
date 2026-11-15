@@ -29,6 +29,7 @@ import { ScheduleSectionLayout } from '@/widgets/ScheduleSectionLayout/ui';
 import { ScheduleListSkeleton } from '@/widgets/Skeleton/ui';
 
 import { scheduleQueries } from '@/features/Schedule/api/queries';
+import { getScheduleSearchDate } from '@/features/Schedule/model/scheduleCalendar';
 import {
   ScheduleCrewSelectBottomSheet,
   ScheduleFilterTab,
@@ -44,7 +45,11 @@ import { scrollContainer } from '@/shared/styles/container.css';
 import type { RunType } from '@/shared/types/schedule';
 import { ScheduleCalendar } from '@/shared/ui/calendar/ui/ScheduleCalendar';
 import { ScheduleWeekCalendar } from '@/shared/ui/calendar/ui/ScheduleWeekCalendar';
-import { BusinessErrorFallback, DomainErrorBoundary } from '@/shared/ui/error';
+import {
+  BusinessErrorFallback,
+  DomainErrorBoundary,
+  QueryErrorFallback,
+} from '@/shared/ui/error';
 import { AppLayout } from '@/shared/ui/layout';
 import { BottomNavigation } from '@/shared/ui/navigation/BottomNavigation';
 
@@ -96,31 +101,48 @@ function ScheduleCrewContent({
   const rafId = useRef(0);
   const pendingH = useRef(0);
 
-  const { data: scheduleList = [] } = useQuery({
+  const listQuery = useQuery({
     ...scheduleQueries.getScheduleListQuery(crewId, {
       runType: activeFilter,
       yearMonth: searchDate.split('-').length === 2 ? searchDate : undefined,
       date: searchDate.split('-').length === 3 ? searchDate : undefined,
     }),
     placeholderData: keepPreviousData,
+    throwOnError: false,
   });
+  const scheduleList = listQuery.data ?? [];
 
-  const { data: scheduleCalendarList = [] } = useQuery({
+  const calendarQuery = useQuery({
     ...scheduleQueries.getScheduleCalendarQuery(crewId, { yearMonth }),
     placeholderData: keepPreviousData,
+    throwOnError: false,
   });
+  const scheduleCalendarList = calendarQuery.data ?? [];
 
-  // 렌더 직후 두 레이어의 실제 높이를 측정해 저장
+  // 달마다 주 수가 다르고 화면 크기에 따라 날짜 높이도 바뀐다.
   useLayoutEffect(() => {
-    if (!wrapperRef.current || !monthlyLayerRef.current) return;
-    collapsedH.current = wrapperRef.current.offsetHeight;
-    expandedH.current = monthlyLayerRef.current.scrollHeight;
-    // isExpanded 상태에 따라 초기 높이 설정 (리마운트 시 복원)
-    if (isExpanded) {
-      wrapperRef.current.style.height = `${expandedH.current}px`;
-    } else {
-      wrapperRef.current.style.height = `${collapsedH.current}px`;
-    }
+    const wrapper = wrapperRef.current;
+    const weekly = weeklyLayerRef.current;
+    const monthly = monthlyLayerRef.current;
+    if (!wrapper || !weekly || !monthly) return;
+
+    const measure = () => {
+      const weeklyHeight = weekly.scrollHeight;
+      const monthlyHeight = monthly.scrollHeight;
+      if (!weeklyHeight || !monthlyHeight) return;
+      cancelAnimationFrame(rafId.current);
+      collapsedH.current = weeklyHeight;
+      expandedH.current = monthlyHeight;
+      wrapper.style.height = `${isExpandedRef.current ? monthlyHeight : weeklyHeight}px`;
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(weekly);
+    observer.observe(monthly);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(rafId.current);
+    };
   }, []);
 
   /** wrapper 높이 애니메이션 + 레이어 전환 (50% 기준 즉시 스왑, 페이드 없음) */
@@ -337,7 +359,11 @@ function ScheduleCrewContent({
               )}
             </div>
 
-            <div ref={wrapperRef} className={styles.calendarWrapper}>
+            <div
+              ref={wrapperRef}
+              className={styles.calendarWrapper}
+              aria-busy={calendarQuery.isFetching}
+            >
               {/* 주간 캘린더: in-flow → wrapper 초기 높이 결정 */}
               <div
                 ref={weeklyLayerRef}
@@ -372,6 +398,15 @@ function ScheduleCrewContent({
                 />
               </div>
             </div>
+            {calendarQuery.isError && (
+              <QueryErrorFallback
+                message="달력 정보를 불러오지 못했어요"
+                onRetry={() => {
+                  void calendarQuery.refetch();
+                }}
+                isRetrying={calendarQuery.isFetching}
+              />
+            )}
           </div>
         }
         scheduleContent={
@@ -380,30 +415,48 @@ function ScheduleCrewContent({
               activeFilter={activeFilter}
               onFilterChange={setActiveFilter}
             />
-            <ScheduleList
-              items={scheduleList}
-              emptyState={
-                <div className={styles.emptyContainer}>
-                  <img
-                    src="/icons/running-person.svg"
-                    alt=""
-                    width={64}
-                    height={64}
-                  />
-                  <p className={styles.emptyText}>등록된 일정이 없어요</p>
-                  <Button
-                    size="medium"
-                    onClick={() => {
-                      const params = selectedDate ? { date: selectedDate } : {};
-                      push('ScheduleCreatePage', params);
-                    }}
-                    className={styles.addScheduleButton}
-                  >
-                    일정 추가하기
-                  </Button>
-                </div>
-              }
-            />
+            {listQuery.isError ? (
+              <QueryErrorFallback
+                message="일정 목록을 불러오지 못했어요"
+                onRetry={() => {
+                  void listQuery.refetch();
+                }}
+                isRetrying={listQuery.isFetching}
+              />
+            ) : listQuery.isPending || listQuery.isPlaceholderData ? (
+              <div role="status" aria-label="일정 목록을 불러오는 중이에요">
+                <ScheduleListSkeleton />
+              </div>
+            ) : (
+              <ScheduleList
+                items={scheduleList}
+                crewId={crewId}
+                emptyState={
+                  <div className={styles.emptyContainer}>
+                    <img
+                      src="/icons/running-person.svg"
+                      alt=""
+                      width={64}
+                      height={64}
+                    />
+                    <p className={styles.emptyText}>등록된 일정이 없어요</p>
+                    <Button
+                      size="medium"
+                      onClick={() => {
+                        const params = {
+                          crewId,
+                          ...(selectedDate ? { date: selectedDate } : {}),
+                        };
+                        push('ScheduleCreatePage', params);
+                      }}
+                      className={styles.addScheduleButton}
+                    >
+                      일정 추가하기
+                    </Button>
+                  </div>
+                }
+              />
+            )}
           </>
         }
       />
@@ -445,9 +498,9 @@ function SchedulePageContent({
     userQueries.joinedCrewsQuery()
   );
   const hasCrews = joinedCrews.length > 0;
-  const crewId = selectedCrewId ?? joinedCrews[0]?.crewId ?? 0;
   const selectedCrew =
     joinedCrews.find((c) => c.crewId === selectedCrewId) ?? joinedCrews[0];
+  const crewId = selectedCrew?.crewId ?? 0;
 
   return (
     <>
@@ -480,7 +533,10 @@ function SchedulePageContent({
             <button
               type="button"
               onClick={() => {
-                const params = selectedDate ? { date: selectedDate } : {};
+                const params = {
+                  crewId,
+                  ...(selectedDate ? { date: selectedDate } : {}),
+                };
                 push('ScheduleCreatePage', params);
               }}
               aria-label="일정 등록"
@@ -634,7 +690,7 @@ function SchedulePageContent({
           isOpen={isCrewSelectOpen}
           onClose={() => setIsCrewSelectOpen(false)}
           crews={joinedCrews}
-          selectedCrewId={selectedCrewId ?? joinedCrews[0]?.crewId ?? null}
+          selectedCrewId={crewId || null}
           onSelect={setSelectedCrewId}
         />
       )}
@@ -649,27 +705,16 @@ export function SchedulePage() {
 
   const { selectedDate, setSelectedDate, viewDate, setViewDate } =
     useCalendar();
-  const [searchDate, setSearchDate] = useState<string>(
-    formatDate(selectedDate, 'YYYY-MM-DD')
-  );
+  const searchDate = getScheduleSearchDate(selectedDate, viewDate);
 
   const handleDateChange = (date: Date) => {
     setSelectedDate(date);
+    setViewDate(date);
   };
 
   useEffect(() => {
-    if (selectedDate.getMonth() !== viewDate.getMonth()) {
-      setSearchDate(formatDate(viewDate, 'YYYY-MM'));
-    } else {
-      setSearchDate(formatDate(selectedDate, 'YYYY-MM-DD'));
-    }
     setActiveFilter(undefined);
-  }, [viewDate]);
-
-  useEffect(() => {
-    setSearchDate(formatDate(selectedDate, 'YYYY-MM-DD'));
-    setActiveFilter(undefined);
-  }, [selectedDate]);
+  }, [viewDate, selectedDate]);
 
   return (
     <AppScreen>

@@ -1,3 +1,5 @@
+import type { MockResponse } from '../api';
+
 export const mockMyInfo = {
   code: 'SUCCESS',
   message: '요청에 성공했습니다.',
@@ -7,7 +9,7 @@ export const mockMyInfo = {
     profileImageUrl: '/icons/icon-crew-default.svg',
     totalPoints: 0,
   },
-};
+} satisfies MockResponse<'get', '/api/v1/members/me'>;
 
 export const mockMyCrews = {
   code: 'SUCCESS',
@@ -19,7 +21,7 @@ export const mockMyCrews = {
       crewImageUrl: '/icons/icon-crew-default.svg',
       memberRole: 'LEADER',
       memberStatus: 'JOINED',
-      invitationCode: 'MOCK1234',
+      invitationCode: 'HAN001',
     },
     {
       crewId: 2,
@@ -27,62 +29,64 @@ export const mockMyCrews = {
       crewImageUrl: '/icons/icon-crew-default.svg',
       memberRole: 'MEMBER',
       memberStatus: 'JOINED',
-      invitationCode: null,
+      invitationCode: 'DAWN02',
     },
   ],
-};
-
-export const mockMySchedules = {
-  code: 'SUCCESS',
-  message: '요청에 성공했습니다.',
-  result: [
-    {
-      scheduleId: 1,
-      title: '한강 나이트 런',
-      runType: 'REGULAR',
-      meetingAt: '2026-11-15T19:30:00.000Z',
-      placeName: '반포 한강 공원',
-      distance: 5,
-      pace: 4.5,
-      maxParticipants: 20,
-      currentParticipants: 12,
-      isMine: false,
-      isParticipating: true,
-      createdAt: '2026-11-01T09:00:00.000Z',
-      status: 'ACTIVE',
-    },
-  ],
-};
-
-export const mockCheckInStatus = {
-  code: 'SUCCESS',
-  message: '요청에 성공했습니다.',
-  result: {
-    hasScheduleToday: false,
-    todayScheduleInfo: null,
-    nextScheduleInfo: {
-      title: '한강 나이트 런',
-      daysLeft: 5,
-    },
-  },
-};
+} satisfies MockResponse<'get', '/api/v1/members/me/crews'>;
 
 export const mockAttendances = {
   code: 'SUCCESS',
   message: '요청에 성공했습니다.',
   result: {
-    totalCount: 10,
-    monthlyCount: 3,
+    totalAttendanceCount: 2,
+    totalPoints: 200,
+    attendanceLogs: [
+      {
+        scheduleId: 10,
+        crewName: '한강 러너스',
+        title: '정기 러닝',
+        runType: 'REGULAR',
+        meetingAt: '2026-11-01T09:00:00',
+        placeName: '반포 한강 공원',
+        status: 'ATTENDED',
+        maxParticipants: 20,
+        currentParticipants: 2,
+      },
+      {
+        scheduleId: 11,
+        crewName: '한강 러너스',
+        title: '번개 러닝',
+        runType: 'LIGHTNING',
+        meetingAt: '2026-11-05T09:00:00',
+        placeName: '반포 한강 공원',
+        status: 'ATTENDED',
+        maxParticipants: 20,
+        currentParticipants: 2,
+      },
+      {
+        scheduleId: 12,
+        crewName: '한강 러너스',
+        title: '정기 러닝',
+        runType: 'REGULAR',
+        meetingAt: '2026-11-10T09:00:00',
+        placeName: '반포 한강 공원',
+        status: 'ABSENT',
+        maxParticipants: 20,
+        currentParticipants: 2,
+      },
+    ],
   },
-};
+} satisfies MockResponse<'get', '/api/v1/members/me/attendances'>;
 
 export const mockAttendanceCalendar = {
   code: 'SUCCESS',
   message: '요청에 성공했습니다.',
-  result: {
-    attendanceDates: ['2026-11-01', '2026-11-05', '2026-11-10'],
-  },
-};
+  result: mockAttendances.result.attendanceLogs.map((log) => ({
+    date: log.meetingAt.slice(0, 10),
+    hasRegular: log.runType === 'REGULAR',
+    hasLightning: log.runType === 'LIGHTNING',
+  })),
+} satisfies MockResponse<'get', '/api/v1/members/me/attendances/calendar'>;
 
 export const mockProviders = {
   code: 'SUCCESS',
@@ -99,12 +103,13 @@ export const mockProviders = {
       },
     ],
   },
-};
+} satisfies MockResponse<'get', '/api/v1/members/me/providers'>;
 
 export const mockOptionalTerms = {
   code: 'SUCCESS',
   message: '요청에 성공했습니다.',
   result: {
-    isMarketingAgreed: false,
+    marketing: { agreed: false, changedAt: null },
+    notification: { agreed: true, changedAt: null },
   },
-};
+} satisfies MockResponse<'get', '/api/v1/members/me/terms/optional'>;

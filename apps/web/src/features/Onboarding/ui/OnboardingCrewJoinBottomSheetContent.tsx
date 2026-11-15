@@ -53,6 +53,7 @@ export function OnboardingCrewJoinBottomSheetContent({
           className={styles.requestButton}
           state={isSubmitting ? 'disabled' : 'active'}
           disabled={isSubmitting}
+          isLoading={isSubmitting}
           onClick={onRequestJoin}
         >
           가입 요청하기

@@ -1,6 +1,6 @@
 import * as styles from '@/widgets/Notification/styles/NotificationFilterTab.css';
 
-import type { NotificationCategory } from '@/shared/mock/notification';
+import type { NotificationCategory } from '@/entities/Notification/model/types';
 
 interface NotificationFilterTabProps {
   activeFilter: NotificationCategory;
@@ -24,6 +24,7 @@ export function NotificationFilterTab({
         <button
           key={filter.value}
           type="button"
+          aria-pressed={activeFilter === filter.value}
           className={
             activeFilter === filter.value
               ? styles.activeTab

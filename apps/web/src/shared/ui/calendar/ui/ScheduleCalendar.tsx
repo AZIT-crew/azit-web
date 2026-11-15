@@ -29,7 +29,7 @@ export function ScheduleCalendar({
   onChangeExplicitViewDate,
   hideHeader = false,
 }: ScheduleCalendarProps) {
-  const { viewDate, setViewDate } = useCalendar();
+  const { viewDate, setViewDate } = useCalendar(value);
 
   const handleViewDateChange = (date: Date) => {
     if (onChangeExplicitViewDate) onChangeExplicitViewDate(date);

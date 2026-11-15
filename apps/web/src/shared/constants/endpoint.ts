@@ -18,6 +18,9 @@ export const END_POINT = {
     MY_ATTENDANCE_CALENDAR: 'members/me/attendances/calendar',
     MY_PROVIDERS: 'members/me/providers',
     OPTIONAL_TERMS: 'members/me/terms/optional',
+    CREW_NOTIFICATIONS: 'members/me/crews/notifications',
+    CREW_NOTIFICATION: (crewId: number) =>
+      `members/me/crews/${crewId}/notifications`,
   },
   ONBOARDING: {
     CREATE_CREW: 'crews',
@@ -25,7 +28,6 @@ export const END_POINT = {
     JOIN_CREW: 'crews/join',
     JOIN_STATUS: (crewId: number) => `crews/${crewId}/join-status`,
     TERM_AGREE: 'members/terms',
-    CONFIRM_JOIN_STATUS: 'members/me/confirm-status',
   },
   CREW: {
     MY_JOINED_CREWS: 'crews/me',

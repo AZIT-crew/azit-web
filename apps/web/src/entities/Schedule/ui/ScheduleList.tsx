@@ -10,17 +10,25 @@ interface ScheduleListProps {
   items: ScheduleListItemType[];
   emptyState: ReactNode;
   isLoading?: boolean;
+  crewId?: number;
+  onSelect?: (item: ScheduleListItemType) => void;
 }
 
 export function ScheduleList({
   items,
   emptyState,
   isLoading,
+  crewId,
+  onSelect,
 }: ScheduleListProps) {
   const { push } = useFlow();
 
   const handleClickItem = (item: ScheduleListItemType) => {
-    push('ScheduleDetailPage', { id: item.scheduleId });
+    if (onSelect) return onSelect(item);
+    push('ScheduleDetailPage', {
+      id: item.scheduleId,
+      ...(crewId ? { crewId } : {}),
+    });
   };
 
   const renderItem = () => {

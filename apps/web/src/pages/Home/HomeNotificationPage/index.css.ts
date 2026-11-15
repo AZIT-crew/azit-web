@@ -25,3 +25,9 @@ export const emptyText = style([
     color: vars.colors.gray60,
   },
 ]);
+
+export const message = style({
+  padding: '24px 20px',
+  color: vars.colors.gray60,
+  textAlign: 'center',
+});

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { meetingSpotSchema } from '@/entities/Schedule/model/meetingSpot';
 import type {
   CreateScheduleRequest,
   CrewScheduleDetailResponse,
@@ -48,7 +49,7 @@ export const scheduleFormSchema = z.object({
   minute: z.number().min(0).max(59),
   locationName: z.string().trim().min(1, '장소명을 입력해주세요'),
   address: z.string().trim().min(1, '주소를 입력해주세요'),
-  detailedLocation: z.string().trim().min(1, '세부 장소를 입력해주세요'),
+  detailedLocation: meetingSpotSchema,
   latitude: z.number(),
   longitude: z.number(),
   distance: z.number().min(1, '거리는 1 이상이어야 합니다').max(DISTANCE_MAX),

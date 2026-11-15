@@ -23,7 +23,9 @@ export function transformRoutes<const Routes extends readonly RouteConfig[]>(
 
   routes.forEach((route) => {
     // withAuth가 true면 HOC로 래핑
-    const Component = route.withAuth ? withAuth(route.element) : route.element;
+    const Component = route.withAuth
+      ? withAuth(route.element, route.name === 'OnboardingTermAgreePage')
+      : route.element;
 
     // stackflow의 ActivityComponentType에 맞추기 위해 타입 단언
     const activityName = route.name as ActivityName;

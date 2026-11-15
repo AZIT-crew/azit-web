@@ -1,83 +1,109 @@
-import { http, HttpResponse } from 'msw';
-
+import { mockApi } from '../api';
+import { mockSuccess } from '../data/crew';
 import {
-  mockCrewInfo,
-  mockCrewInvitation,
-  mockCrewJoinRequests,
-  mockCrewJoinStatus,
-  mockCrewJoinedList,
-  mockCrewMembers,
-  mockInvitationCode,
-  mockSuccess,
-} from '../data/crew';
+  cancelMockJoinRequest,
+  createMockCrew,
+  decideMockCrewJoinRequest,
+  deleteMockCrewMember,
+  dissolveMockCrew,
+  exitMockCrew,
+  getMockCrewInfo,
+  getMockCrewInvitation,
+  getMockCrewJoinStatus,
+  getMockCrewJoinRequests,
+  getMockCrewMembers,
+  getMockJoinedCrews,
+  joinMockCrew,
+  reissueMockInvitationCode,
+  updateMockCrewInfo,
+} from '../state/crews';
 
 export const crewHandlers = [
-  http.get('*/crews/me', () => {
-    return HttpResponse.json(mockCrewJoinedList);
+  mockApi.get('/api/v1/crews/me', () => ({
+    ...mockSuccess,
+    result: getMockJoinedCrews(),
+  })),
+  mockApi.post('/api/v1/crews', async ({ request }) => ({
+    ...mockSuccess,
+    result: createMockCrew(await request.json()),
+  })),
+  mockApi.get('/api/v1/crews/invitation/{invitationCode}', ({ params }) => ({
+    ...mockSuccess,
+    result: getMockCrewInvitation(params.invitationCode),
+  })),
+  mockApi.post('/api/v1/crews/join', async ({ request }) => {
+    joinMockCrew((await request.json()).invitationCode);
+    return mockSuccess;
   }),
-
-  http.post('*/crews', () => {
-    return HttpResponse.json({
-      code: 'SUCCESS',
-      message: '요청에 성공했습니다.',
-      result: { crewId: 1 },
-    });
+  mockApi.get('/api/v1/crews/{crewId}/join-status', ({ params }) => ({
+    ...mockSuccess,
+    result: getMockCrewJoinStatus(Number(params.crewId)),
+  })),
+  mockApi.get('/api/v1/crews/{crewId}/members', ({ params, request }) => ({
+    ...mockSuccess,
+    result: getMockCrewMembers(
+      Number(params.crewId),
+      new URL(request.url).searchParams
+    ),
+  })),
+  mockApi.get('/api/v1/crews/{crewId}/join-requests', ({ params }) => ({
+    ...mockSuccess,
+    result: getMockCrewJoinRequests(Number(params.crewId)),
+  })),
+  mockApi.post(
+    '/api/v1/crews/{crewId}/join-requests/{targetMemberId}/approve',
+    ({ params }) => {
+      decideMockCrewJoinRequest(
+        Number(params.crewId),
+        Number(params.targetMemberId),
+        true
+      );
+      return mockSuccess;
+    }
+  ),
+  mockApi.post(
+    '/api/v1/crews/{crewId}/join-requests/{targetMemberId}/reject',
+    ({ params }) => {
+      decideMockCrewJoinRequest(
+        Number(params.crewId),
+        Number(params.targetMemberId),
+        false
+      );
+      return mockSuccess;
+    }
+  ),
+  mockApi.delete('/api/v1/crews/{crewId}/join-request', ({ params }) => {
+    cancelMockJoinRequest(Number(params.crewId));
+    return mockSuccess;
   }),
-
-  http.get('*/crews/invitation/:code', () => {
-    return HttpResponse.json(mockCrewInvitation);
+  mockApi.delete('/api/v1/crews/{crewId}/members/me', ({ params }) => {
+    exitMockCrew(Number(params.crewId));
+    return mockSuccess;
   }),
-
-  http.post('*/crews/join', () => {
-    return HttpResponse.json(mockSuccess);
+  mockApi.delete(
+    '/api/v1/crews/{crewId}/members/{targetMemberId}',
+    ({ params }) => {
+      deleteMockCrewMember(
+        Number(params.crewId),
+        Number(params.targetMemberId)
+      );
+      return mockSuccess;
+    }
+  ),
+  mockApi.delete('/api/v1/crews/{crewId}', ({ params }) => {
+    dissolveMockCrew(Number(params.crewId));
+    return mockSuccess;
   }),
-
-  http.get('*/crews/:id/join-status', () => {
-    return HttpResponse.json(mockCrewJoinStatus);
-  }),
-
-  http.get('*/crews/:id/members', () => {
-    return HttpResponse.json(mockCrewMembers);
-  }),
-
-  http.get('*/crews/:id/join-requests', () => {
-    return HttpResponse.json(mockCrewJoinRequests);
-  }),
-
-  http.post('*/crews/:id/join-requests/:memberId/approve', () => {
-    return HttpResponse.json(mockSuccess);
-  }),
-
-  http.post('*/crews/:id/join-requests/:memberId/reject', () => {
-    return HttpResponse.json(mockSuccess);
-  }),
-
-  http.delete('*/crews/:id/join-request', () => {
-    return HttpResponse.json(mockSuccess);
-  }),
-
-  http.delete('*/crews/:id/members/me', () => {
-    return HttpResponse.json(mockSuccess);
-  }),
-
-  http.delete('*/crews/:id/members/:memberId', () => {
-    return HttpResponse.json(mockSuccess);
-  }),
-
-  // crews/:id/members/me보다 뒤에 위치해야 하므로 순서 주의
-  http.delete('*/crews/:id', () => {
-    return HttpResponse.json(mockSuccess);
-  }),
-
-  http.post('*/crews/:id/invitation-code', () => {
-    return HttpResponse.json(mockInvitationCode);
-  }),
-
-  http.get('*/crews/:id/info', () => {
-    return HttpResponse.json(mockCrewInfo);
-  }),
-
-  http.patch('*/crews/:id/info', () => {
-    return HttpResponse.json(mockSuccess);
+  mockApi.post('/api/v1/crews/{crewId}/invitation-code', ({ params }) => ({
+    ...mockSuccess,
+    result: reissueMockInvitationCode(Number(params.crewId)),
+  })),
+  mockApi.get('/api/v1/crews/{crewId}/info', ({ params }) => ({
+    ...mockSuccess,
+    result: getMockCrewInfo(Number(params.crewId)),
+  })),
+  mockApi.patch('/api/v1/crews/{crewId}/info', async ({ params, request }) => {
+    updateMockCrewInfo(Number(params.crewId), await request.json());
+    return mockSuccess;
   }),
 ];

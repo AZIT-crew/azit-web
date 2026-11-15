@@ -3,3 +3,4 @@ export { DomainErrorBoundary } from './DomainErrorBoundary';
 export { DEFAULT_FALLBACK, ERROR_FALLBACK_MAP } from './errorFallbackMap';
 export type { FallbackConfig } from './errorFallbackMap';
 export { PageErrorFallback } from './PageErrorFallback';
+export { QueryErrorFallback } from './QueryErrorFallback';

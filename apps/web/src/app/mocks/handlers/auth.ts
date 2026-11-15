@@ -1,50 +1,48 @@
-import { http, HttpResponse } from 'msw';
+import type { ReissueTokenResult } from '@/shared/api/models/auth';
 
-const MOCK_AUTH_STATUS_KEY = '__mock_auth_status__';
-type MockAuthStatus = 'ACTIVE' | 'PENDING_TERMS' | 'LOGGED_OUT';
+import { MockApiError, mockApi, type MockResponse } from '../api';
+import { mockSuccess } from '../data/crew';
+import { getMockAuthStatus, setMockAuthStatus } from '../state/auth';
+import { unlinkMockProvider } from '../state/member';
 
-function getMockAuthStatus(): MockAuthStatus {
-  return (
-    (localStorage.getItem(MOCK_AUTH_STATUS_KEY) as MockAuthStatus) ?? 'ACTIVE'
-  );
+type LoginStatus = ReissueTokenResult['status'];
+
+function loginResponse(
+  status: LoginStatus
+): MockResponse<'post', '/api/v1/auth/reissue'> {
+  return {
+    code: 'SUCCESS',
+    message: '요청에 성공했습니다.',
+    result: {
+      accessToken: 'mock-access-token',
+      accessTokenExpiresIn: 3600,
+      status,
+      crewId: 1,
+      needsTermsUpdate: status === 'PENDING_TERMS',
+    },
+  };
 }
 
 export const authHandlers = [
-  http.get('*/auth/social-login/:provider', () => {
-    return HttpResponse.json({
-      code: 'SUCCESS',
-      message: '요청에 성공했습니다.',
-      result: {
-        accessToken: 'mock-access-token',
-        refreshToken: 'mock-refresh-token',
-        status: 'ACTIVE',
-      },
-    });
+  mockApi.delete('/api/v1/auth/social-accounts/{provider}', ({ params }) => {
+    unlinkMockProvider(params.provider);
+    return mockSuccess;
+  }),
+  mockApi.post('/api/v1/auth/social-login/{provider}', () => {
+    setMockAuthStatus('ACTIVE');
+    return loginResponse('ACTIVE');
   }),
 
-  http.post('*/auth/reissue', () => {
+  mockApi.post('/api/v1/auth/reissue', () => {
     const status = getMockAuthStatus();
     if (status === 'LOGGED_OUT') {
-      return HttpResponse.json(
-        { code: 'UNAUTHORIZED', message: '인증이 필요합니다.' },
-        { status: 401 }
-      );
+      throw new MockApiError('UNAUTHORIZED', '인증이 필요합니다.', 401);
     }
-    return HttpResponse.json({
-      code: 'SUCCESS',
-      message: '요청에 성공했습니다.',
-      result: {
-        accessToken: 'mock-access-token',
-        refreshToken: 'mock-refresh-token',
-        status,
-      },
-    });
+    return loginResponse(status);
   }),
 
-  http.post('*/auth/logout', () => {
-    return HttpResponse.json({
-      code: 'SUCCESS',
-      message: '요청에 성공했습니다.',
-    });
+  mockApi.post('/api/v1/auth/logout', () => {
+    setMockAuthStatus('LOGGED_OUT');
+    return mockSuccess;
   }),
 ];

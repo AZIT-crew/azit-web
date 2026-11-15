@@ -17,6 +17,7 @@ import {
 import { ScheduleAttendanceSection } from '@/widgets/ScheduleAttendance/ui';
 import { ScheduleSectionLayout } from '@/widgets/ScheduleSectionLayout/ui';
 
+import { getScheduleList } from '@/entities/Schedule/api/getScheduleList';
 import { scheduleEntityQueries as scheduleQueries } from '@/entities/Schedule/api/queries';
 import { ScheduleList } from '@/entities/Schedule/ui/ScheduleList';
 import { userQueries } from '@/entities/User/api/queries';
@@ -25,7 +26,7 @@ import { scrollContainer } from '@/shared/styles/container.css';
 import { logo } from '@/shared/styles/logo.css';
 import { AppLayout } from '@/shared/ui/layout';
 import { BottomNavigation } from '@/shared/ui/navigation/BottomNavigation';
-import { toastSuccess } from '@/shared/ui/toast';
+import { toastSuccess, toastError } from '@/shared/ui/toast';
 
 import * as scheduleListStyles from './index.css';
 
@@ -134,6 +135,8 @@ export function HomePage() {
           left={<h1 className={logo}>AZIT</h1>}
           right={
             <button
+              type="button"
+              aria-label="알림"
               onClick={() => {
                 push('HomeNotificationPage', {});
               }}
@@ -156,6 +159,38 @@ export function HomePage() {
             scheduleContent={
               <ScheduleList
                 items={scheduleList}
+                onSelect={async (item) => {
+                  try {
+                    const crews = myCrewsData ?? [];
+                    if (!item.meetingAt) return;
+                    for (const crew of crews.filter(
+                      (crew) => crew.memberStatus === 'JOINED'
+                    )) {
+                      const { result: items = [] } = await getScheduleList(
+                        crew.crewId,
+                        {
+                          date: item.meetingAt.slice(0, 10),
+                        }
+                      );
+                      if (
+                        items.some(
+                          (schedule) => schedule.scheduleId === item.scheduleId
+                        )
+                      ) {
+                        push('ScheduleDetailPage', {
+                          id: item.scheduleId,
+                          crewId: crew.crewId,
+                        });
+                        return;
+                      }
+                    }
+                    toastError('일정의 크루 정보를 찾을 수 없습니다.');
+                  } catch {
+                    toastError(
+                      '일정 정보를 불러오지 못했습니다. 다시 시도해주세요.'
+                    );
+                  }
+                }}
                 emptyState={
                   <div className={scheduleListStyles.emptyContainer}>
                     <img
