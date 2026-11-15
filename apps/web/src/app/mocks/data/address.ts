@@ -1,3 +1,5 @@
+import type { MockResponse } from '../api';
+
 export const mockAddressList = {
   code: 'SUCCESS',
   message: '요청에 성공했습니다.',
@@ -21,4 +23,4 @@ export const mockAddressList = {
       isDefault: false,
     },
   ],
-};
+} satisfies MockResponse<'get', '/api/v1/addresses'>;

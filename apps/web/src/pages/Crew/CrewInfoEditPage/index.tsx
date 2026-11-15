@@ -5,12 +5,8 @@ import { AddImageIcon } from '@azit/design-system/icon';
 import { Input } from '@azit/design-system/input';
 import { AppScreen } from '@stackflow/plugin-basic-ui';
 import { useActivityParams } from '@stackflow/react';
-import {
-  useMutation,
-  useSuspenseQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
-import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRef, useState } from 'react';
 
 import { crewQueries } from '@/features/Crew/api/queries';
 
@@ -26,7 +22,7 @@ import { base64ToBlob } from '@/shared/lib/image';
 import { useStack } from '@/shared/lib/stackflow/useStack';
 import { AsyncBoundary } from '@/shared/ui/async-boundary';
 import { BackButton } from '@/shared/ui/button';
-import { PageErrorFallback } from '@/shared/ui/error';
+import { PageErrorFallback, QueryErrorFallback } from '@/shared/ui/error';
 import { AppLayout } from '@/shared/ui/layout';
 import { PageLoader } from '@/shared/ui/loading/PageLoader';
 import { toastError, toastSuccess } from '@/shared/ui/toast';
@@ -43,9 +39,24 @@ function CrewInfoEditPageContent() {
   const queryClient = useQueryClient();
   const { pop } = useStack();
 
-  const { data: crewDetailInfo } = useSuspenseQuery(
-    crewQueries.crewDetailInfoQuery(crewId)
-  );
+  const crewsQuery = useQuery({
+    ...userQueries.myCrewsQuery(),
+    throwOnError: false,
+  });
+  const isLeader =
+    crewsQuery.data?.some(
+      (crew) =>
+        crew.crewId === crewId &&
+        crew.memberStatus === 'JOINED' &&
+        crew.memberRole === 'LEADER'
+    ) ?? false;
+  const detailQuery = useQuery({
+    ...crewQueries.crewDetailInfoQuery(crewId),
+    enabled: isLeader,
+    throwOnError: false,
+  });
+  const crewDetailInfo = detailQuery.data;
+  const submittingRef = useRef(false);
 
   const [crewImageUrl, setCrewImageUrl] = useState<string | null>(null);
   const [isPickerLoading, setIsPickerLoading] = useState(false);
@@ -56,15 +67,24 @@ function CrewInfoEditPageContent() {
 
   const { mutate: updateCrew, isPending } = useMutation({
     ...crewQueries.updateCrewInfo,
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: userQueries.myCrewsKey(),
-      });
-      queryClient.invalidateQueries({
-        queryKey: crewQueries.crewDetailInfoKey(crewId),
-      });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: userQueries.myCrewsKey(),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: userQueries.joinedCrewsKey(),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: crewQueries.crewDetailInfoKey(crewId),
+        }),
+        queryClient.invalidateQueries({ queryKey: crewQueries.crewInfoKey() }),
+      ]);
       toastSuccess('크루 정보가 수정되었습니다.');
       pop();
+    },
+    onSettled: () => {
+      submittingRef.current = false;
     },
     onError: (error) => {
       if (
@@ -88,6 +108,9 @@ function CrewInfoEditPageContent() {
     currentCrewIntro !== (crewDetailInfo?.description ?? '');
   const isChanged =
     isCrewNameChanged || isCrewIntroChanged || crewImageUrl !== null;
+  const isNameValid =
+    currentCrewName.trim().length > 0 &&
+    currentCrewName.length <= MAX_CREW_NAME_LENGTH;
 
   const handleCrewNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\s/g, '');
@@ -113,7 +136,7 @@ function CrewInfoEditPageContent() {
   };
 
   const handleProfileImageBadgeClick = () => {
-    if (isPickerLoading) return;
+    if (isPickerLoading || isPending) return;
     setIsBottomSheetOpen(true);
   };
 
@@ -151,7 +174,15 @@ function CrewInfoEditPageContent() {
   };
 
   const handleSubmit = () => {
-    if (!isChanged || isPending) return;
+    if (
+      !isChanged ||
+      !isNameValid ||
+      !isLeader ||
+      submittingRef.current ||
+      detailQuery.isError
+    )
+      return;
+    submittingRef.current = true;
     updateCrew({
       crewId,
       name: currentCrewName,
@@ -159,6 +190,39 @@ function CrewInfoEditPageContent() {
       description: currentCrewIntro || undefined,
     });
   };
+
+  const fallback = crewsQuery.isError ? (
+    <QueryErrorFallback
+      message="크루 정보를 불러오지 못했어요"
+      onRetry={() => {
+        void crewsQuery.refetch();
+      }}
+      isRetrying={crewsQuery.isFetching}
+    />
+  ) : crewsQuery.isPending ? (
+    <PageLoader />
+  ) : !isLeader ? (
+    <PageErrorFallback message="크루 리더만 정보를 수정할 수 있어요" />
+  ) : detailQuery.isError ? (
+    <QueryErrorFallback
+      message="크루 정보를 불러오지 못했어요"
+      onRetry={() => {
+        void detailQuery.refetch();
+      }}
+      isRetrying={detailQuery.isFetching}
+    />
+  ) : detailQuery.isPending ? (
+    <PageLoader />
+  ) : null;
+  if (fallback)
+    return (
+      <AppScreen>
+        <AppLayout>
+          <Header left={<BackButton />} center="크루 정보 수정" />
+          {fallback}
+        </AppLayout>
+      </AppScreen>
+    );
 
   return (
     <AppScreen backgroundColor={vars.colors.white}>
@@ -190,10 +254,13 @@ function CrewInfoEditPageContent() {
               <span className={styles.fieldLabel}>크루명</span>
               <Input
                 value={currentCrewName}
+                readOnly={isPending}
                 placeholder="크루 이름을 입력해주세요"
                 onChange={handleCrewNameChange}
                 onRemove={
-                  currentCrewName.length > 0 ? handleCrewNameRemove : undefined
+                  !isPending && currentCrewName.length > 0
+                    ? handleCrewNameRemove
+                    : undefined
                 }
                 maxLength={MAX_CREW_NAME_LENGTH}
                 state={crewNameError ? 'error' : 'default'}
@@ -208,10 +275,11 @@ function CrewInfoEditPageContent() {
               <span className={styles.fieldLabel}>크루 한줄 소개</span>
               <Input
                 value={currentCrewIntro}
+                readOnly={isPending}
                 placeholder="크루 한줄 소개를 입력해주세요"
                 onChange={handleCrewIntroChange}
                 onRemove={
-                  currentCrewIntro.length > 0
+                  !isPending && currentCrewIntro.length > 0
                     ? handleCrewIntroRemove
                     : undefined
                 }
@@ -227,7 +295,9 @@ function CrewInfoEditPageContent() {
         </div>
         <div className={styles.footerWrapper}>
           <Button
-            state={isChanged && !isPending ? 'active' : 'disabled'}
+            state={isChanged && isNameValid ? 'active' : 'disabled'}
+            disabled={!isChanged || !isNameValid || isPickerLoading}
+            isLoading={isPending}
             onClick={handleSubmit}
           >
             수정하기

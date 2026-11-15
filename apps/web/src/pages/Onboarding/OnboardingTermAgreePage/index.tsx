@@ -2,7 +2,8 @@ import { Button } from '@azit/design-system/button';
 import { Checkbox } from '@azit/design-system/checkbox';
 import { Divider } from '@azit/design-system/divider';
 import { AppScreen } from '@stackflow/plugin-basic-ui';
-import { useState, useMemo } from 'react';
+import { useMutation } from '@tanstack/react-query';
+import { useState, useMemo, useRef } from 'react';
 
 import { useFlow } from '@/app/routes/stackflow';
 
@@ -11,6 +12,10 @@ import { fetchUserPosition } from '@/widgets/ScheduleAttendance/model/location';
 import { postTermAgree } from '@/features/Onboarding/api/postTermAgree';
 import { TermAgreeItem } from '@/features/Onboarding/ui';
 
+import { ServerError } from '@/shared/api/apiHandler';
+import { postReissueToken } from '@/shared/api/handlers/postReissueToken';
+import { isAuthenticationError } from '@/shared/auth/model/session';
+import { useAuthStore } from '@/shared/store/auth';
 import { AppLayout } from '@/shared/ui/layout';
 
 import * as styles from './index.css';
@@ -65,7 +70,42 @@ const TERM_ID_TO_TERM_TYPE: Record<string, string> = {
 };
 
 export function OnboardingTermAgreePage() {
-  const { push, replace } = useFlow();
+  const { push } = useFlow();
+  const submittingRef = useRef(false);
+  const [termsSaved, setTermsSaved] = useState(false);
+  const agreementMutation = useMutation({
+    mutationFn: async () => {
+      if (!termsSaved) {
+        await postTermAgree({
+          ...terms,
+          marketingTermsAgreed: false,
+          notificationTermsAgreed: false,
+        });
+        setTermsSaved(true);
+      }
+      try {
+        const response = await postReissueToken();
+        if (response.result.status !== 'ACTIVE' || !response.result.accessToken)
+          throw new ServerError(
+            '가입 상태를 확인하지 못했어요. 다시 시도해주세요.',
+            500
+          );
+        return response;
+      } catch (error) {
+        if (isAuthenticationError(error))
+          useAuthStore.getState().clearSession();
+        throw error;
+      }
+    },
+    onSuccess: ({ result }) => {
+      // 회원 상태와 이동을 함께 반영해 초기화의 기본 이동과 경쟁하지 않게 한다.
+      useAuthStore.getState().setSession(result, 'OnboardingPage');
+      void fetchUserPosition({ showErrorToast: false });
+    },
+    onSettled: () => {
+      submittingRef.current = false;
+    },
+  });
   const [terms, setTerms] = useState<TermsState>(
     () =>
       Object.fromEntries(
@@ -98,17 +138,10 @@ export function OnboardingTermAgreePage() {
     }));
   };
 
-  const handleTermAgree = async () => {
-    await fetchUserPosition({ showErrorToast: false });
-
-    const requestPayload = {
-      ...terms,
-      marketingTermsAgreed: false,
-      notificationTermsAgreed: false,
-    };
-
-    await postTermAgree(requestPayload);
-    replace('OnboardingPage', {}, { animate: false });
+  const handleTermAgree = () => {
+    if (!isRequiredChecked || submittingRef.current) return;
+    submittingRef.current = true;
+    agreementMutation.mutate();
   };
 
   const handleDetailClick = (id: string) => {
@@ -129,7 +162,10 @@ export function OnboardingTermAgreePage() {
               서비스 이용을 위해 약관 동의가 필요해요
             </p>
           </div>
-          <div className={styles.termsSection}>
+          <div
+            className={styles.termsSection}
+            inert={agreementMutation.isPending || termsSaved}
+          >
             <div className={styles.allAgreeItem}>
               <Checkbox
                 id="all-agree"
@@ -165,6 +201,7 @@ export function OnboardingTermAgreePage() {
           <Button
             state={isRequiredChecked ? 'active' : 'disabled'}
             disabled={!isRequiredChecked}
+            isLoading={agreementMutation.isPending}
             onClick={handleTermAgree}
           >
             다음

@@ -198,6 +198,23 @@ const eslintConfig = [
   globalIgnores(['dist', 'src/shared/api/apiTypes.ts']),
   ...reactConfig,
   {
+    files: ['src/app/mocks/handlers/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['msw', 'msw/*'],
+              message:
+                'API mock은 OpenAPI 계약을 검사하는 ../api의 mockApi를 사용하세요.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     plugins: {
       import: importPlugin,
       'feature-slice': featureSlicePlugin,

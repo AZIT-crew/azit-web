@@ -9,6 +9,7 @@ import {
 import { createPortal } from 'react-dom';
 
 import * as styles from '@/shared/ui/bottom-sheet/BottomSheet.css';
+import { useBodyScrollLock } from '@/shared/ui/bottom-sheet/useBodyScrollLock';
 import { useBottomSheetDrag } from '@/shared/ui/bottom-sheet/useBottomSheetDrag';
 
 interface BottomSheetProps {
@@ -33,6 +34,8 @@ export function BottomSheet({
   );
   const [shouldRender, setShouldRender] = useState(isOpen);
 
+  useBodyScrollLock(shouldRender);
+
   const drawerRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const isDismissingByDragRef = useRef(false);
@@ -56,13 +59,11 @@ export function BottomSheet({
       setShouldRender(true);
       setAnimationState('entering');
       const timer = setTimeout(() => setAnimationState('entered'), 300);
-      document.body.style.overflow = 'hidden';
       return () => clearTimeout(timer);
     } else {
       if (isDismissingByDragRef.current) {
         setAnimationState('exited');
         setShouldRender(false);
-        document.body.style.overflow = '';
         return;
       }
       setAnimationState('exiting');
@@ -70,7 +71,6 @@ export function BottomSheet({
         setAnimationState('exited');
         setShouldRender(false);
       }, 300);
-      document.body.style.overflow = '';
       return () => clearTimeout(timer);
     }
   }, [isOpen]);

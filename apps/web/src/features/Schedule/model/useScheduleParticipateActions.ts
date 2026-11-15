@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRef } from 'react';
 
 import { scheduleQueries } from '@/features/Schedule/api/queries';
 
@@ -16,8 +17,17 @@ export function useScheduleParticipateActions({
   scheduleId,
 }: UseScheduleActionsProps) {
   const queryClient = useQueryClient();
+  const isSubmittingRef = useRef(false);
 
-  const scheduleAllQueryKey = scheduleQueries.all;
+  const refreshScheduleState = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: scheduleQueries.all }),
+      queryClient.invalidateQueries({ queryKey: userQueries.myInfoKey() }),
+    ]);
+
+  const releaseSubmission = () => {
+    isSubmittingRef.current = false;
+  };
 
   const participateMutation = useMutation({
     ...scheduleQueries.participateSchedule,
@@ -26,35 +36,31 @@ export function useScheduleParticipateActions({
         SCHEDULE_INTERVAL_TOO_CLOSE: '이전 일정과 시작 시간이 너무 가깝습니다',
       },
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      await refreshScheduleState();
       toastSuccess('신청이 완료되었습니다');
-      queryClient.invalidateQueries({ queryKey: scheduleAllQueryKey });
-      queryClient.invalidateQueries({ queryKey: userQueries.myInfoKey() });
-      queryClient.invalidateQueries({
-        queryKey: scheduleQueries.checkInStatusKey(),
-      });
     },
+    onSettled: releaseSubmission,
   });
 
   const cancelMutation = useMutation({
     ...scheduleQueries.cancelParticipation,
-    onSuccess: () => {
+    onSuccess: async () => {
+      await refreshScheduleState();
       toastSuccess('신청이 취소되었습니다');
-      queryClient.invalidateQueries({ queryKey: scheduleAllQueryKey });
-      queryClient.invalidateQueries({ queryKey: userQueries.myInfoKey() });
-      queryClient.invalidateQueries({
-        queryKey: scheduleQueries.checkInStatusKey(),
-      });
     },
+    onSettled: releaseSubmission,
   });
 
   const participate = () => {
-    if (crewId <= 0 || scheduleId <= 0) return;
+    if (isSubmittingRef.current || crewId <= 0 || scheduleId <= 0) return;
+    isSubmittingRef.current = true;
     participateMutation.mutate({ crewId, scheduleId });
   };
 
   const cancelParticipation = () => {
-    if (crewId <= 0 || scheduleId <= 0) return;
+    if (isSubmittingRef.current || crewId <= 0 || scheduleId <= 0) return;
+    isSubmittingRef.current = true;
     cancelMutation.mutate({ crewId, scheduleId });
   };
 

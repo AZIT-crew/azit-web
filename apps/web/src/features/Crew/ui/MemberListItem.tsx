@@ -1,4 +1,5 @@
 import { AlertDialog } from '@azit/design-system/alert-dialog';
+import { Button } from '@azit/design-system/button';
 import { Chip } from '@azit/design-system/chip';
 import { XIcon } from '@azit/design-system/icon';
 
@@ -21,6 +22,7 @@ interface MemberListItemProps {
   profileImageUrl: string;
   onDeleteMember?: (memberId: number) => void;
   isDeleting?: boolean;
+  isDeletePending?: boolean;
 }
 
 export function MemberListItem({
@@ -31,6 +33,7 @@ export function MemberListItem({
   joinedDate,
   onDeleteMember,
   isDeleting,
+  isDeletePending,
 }: MemberListItemProps) {
   const handleDelete = () => {
     onDeleteMember?.(memberId);
@@ -67,20 +70,29 @@ export function MemberListItem({
         {showRemoveButton && (
           <AlertDialog
             trigger={
-              <button
+              <Button
                 type="button"
                 className={styles.removeButton}
-                disabled={isDeleting}
+                style={{
+                  width: 24,
+                  height: 24,
+                  padding: 0,
+                  border: 'none',
+                  background: 'none',
+                }}
+                disabled={isDeletePending}
+                isLoading={isDeleting}
                 aria-label="멤버 방출"
               >
-                <XIcon size={20} color="inherit" />
-              </button>
+                {!isDeleting && <XIcon size={20} color="inherit" />}
+              </Button>
             }
             title="해당 멤버를 방출 하시겠습니까?"
             description={`‘${nickname}’님이 아지트 크루 멤버에서 제외됩니다`}
             actionText="방출하기"
             cancelText="취소하기"
             onAction={handleDelete}
+            actionDisabled={isDeletePending}
           />
         )}
       </div>

@@ -3,21 +3,28 @@ import { Header } from '@azit/design-system/header';
 import { Input } from '@azit/design-system/input';
 import { AppScreen } from '@stackflow/plugin-basic-ui';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { useFlow } from '@/app/routes/stackflow';
 
+import { resolveScheduleLocation } from '@/features/Schedule/model/resolveScheduleLocation';
+import { useMeetingSpotInput } from '@/features/Schedule/model/useMeetingSpotInput';
 import { MeetingSpotPicker } from '@/features/Schedule/ui';
 import { LocationSearchResultItem } from '@/features/Schedule/ui/LocationSearchResultItem';
 
 import { locationQueries } from '@/entities/Location/api/queries';
 import type { LocationSearchResponse } from '@/entities/Location/model/location.model';
+import {
+  MEETING_SPOT_MAX_LENGTH,
+  meetingSpotSchema,
+} from '@/entities/Schedule/model/meetingSpot';
 
-import { reverseGeocode } from '@/shared/lib/naverGeocoding';
+import { normalizeStr } from '@/shared/lib/formatters';
 import { useDebounce } from '@/shared/lib/useDebounce';
 import { useScheduleLocationSelectionStore } from '@/shared/store/scheduleLocationSelection';
 import { BottomSheet } from '@/shared/ui/bottom-sheet';
 import { BackButton } from '@/shared/ui/button';
+import { QueryErrorFallback } from '@/shared/ui/error';
 import { AppLayout } from '@/shared/ui/layout';
 import type { LatLng } from '@/shared/ui/naver-map/NaverMap';
 import { Show } from '@/shared/ui/show';
@@ -40,14 +47,25 @@ export function ScheduleLocationPage() {
     useState<LocationSearchResponse | null>(null);
   const [adjustedCoords, setAdjustedCoords] = useState<LatLng | null>(null);
   const [isLocationNameSheetOpen, setIsLocationNameSheetOpen] = useState(false);
-  const [locationName, setLocationName] = useState('');
+  const [isRegistering, setIsRegistering] = useState(false);
+  const isRegisteringRef = useRef(false);
+  const { value: locationName, ...locationNameInputProps } =
+    useMeetingSpotInput();
 
   const debouncedQuery = useDebounce(searchQuery, 500);
 
-  const { data } = useQuery(locationQueries.searchQuery(debouncedQuery));
+  const searchOptions = locationQueries.searchQuery(debouncedQuery);
+  const search = useQuery({
+    ...searchOptions,
+    enabled: searchOptions.enabled && view === 'search',
+    throwOnError: false,
+  });
+  const normalizedQuery = normalizeStr(searchQuery);
+  const isDebouncing = normalizedQuery !== normalizeStr(debouncedQuery);
 
   const handleSelectLocation = (location: LocationSearchResponse) => {
     setSelectedLocation(location);
+    setAdjustedCoords(null);
     setSearchQuery(location.placeName ?? '');
     setView('map');
   };
@@ -57,35 +75,24 @@ export function ScheduleLocationPage() {
   };
 
   const handleRegisterLocation = async () => {
-    if (!selectedLocation) return;
-
-    const newLocation = {
-      address: selectedLocation.address ?? '',
-      locationName: selectedLocation.placeName ?? '',
-      detailedLocation: locationName,
-      latitude: selectedLocation.latitude ?? 0,
-      longitude: selectedLocation.longitude ?? 0,
-    };
-
-    if (adjustedCoords) {
-      try {
-        const newAddress = await reverseGeocode(
-          adjustedCoords.lat,
-          adjustedCoords.lng
-        );
-
-        if (newAddress.length > 0) {
-          newLocation.address = newAddress;
-        } else {
-          toastError(TOAST_MESSAGE);
-        }
-      } catch {
-        toastError(TOAST_MESSAGE);
-      }
+    if (isRegisteringRef.current) return;
+    const parsedLocationName = meetingSpotSchema.safeParse(locationName);
+    if (!selectedLocation || !parsedLocationName.success) return;
+    isRegisteringRef.current = true;
+    setIsRegistering(true);
+    try {
+      const { location, usedAddressFallback } = await resolveScheduleLocation(
+        selectedLocation,
+        parsedLocationName.data,
+        adjustedCoords
+      );
+      if (usedAddressFallback) toastError(TOAST_MESSAGE);
+      setSelectedScheduleLocation(location);
+      pop();
+    } finally {
+      isRegisteringRef.current = false;
+      setIsRegistering(false);
     }
-
-    setSelectedScheduleLocation(newLocation);
-    pop();
   };
 
   return (
@@ -115,7 +122,19 @@ export function ScheduleLocationPage() {
             />
           </div>
           <Show when={view === 'search'}>
-            {debouncedQuery && (data ?? []).length === 0 ? (
+            {!normalizedQuery ? null : isDebouncing || search.isPending ? (
+              <p role="status" className={styles.searchStatus}>
+                장소를 검색하는 중이에요
+              </p>
+            ) : search.isError ? (
+              <QueryErrorFallback
+                message="장소를 검색하지 못했어요"
+                onRetry={() => {
+                  void search.refetch();
+                }}
+                isRetrying={search.isFetching}
+              />
+            ) : (search.data ?? []).length === 0 ? (
               <div className={styles.emptyState}>
                 <img
                   src="/icons/magnifying-glass.svg"
@@ -131,7 +150,7 @@ export function ScheduleLocationPage() {
               </div>
             ) : (
               <div className={styles.searchResultList}>
-                {(data ?? []).map((result, index) => (
+                {(search.data ?? []).map((result, index) => (
                   <LocationSearchResultItem
                     key={`${result.placeName}-${index}`}
                     name={result.placeName ?? ''}
@@ -157,7 +176,9 @@ export function ScheduleLocationPage() {
       </AppLayout>
       <BottomSheet
         isOpen={isLocationNameSheetOpen}
-        onOutsideClick={() => setIsLocationNameSheetOpen(false)}
+        onOutsideClick={() => {
+          if (!isRegistering) setIsLocationNameSheetOpen(false);
+        }}
         contentClassName={styles.locationNameSheetContent}
       >
         <p className={styles.locationNameSheetTitle}>
@@ -166,14 +187,22 @@ export function ScheduleLocationPage() {
         <div className={styles.locationNameInputWrapper}>
           <Input
             value={locationName}
-            onChange={(e) => setLocationName(e.target.value)}
+            {...locationNameInputProps}
+            readOnly={isRegistering}
+            aria-label="집합 장소명"
             placeholder="예) 여의나루역 러너스스테이션"
-          />
+          >
+            <Input.Description
+              right={`${locationName.length}/${MEETING_SPOT_MAX_LENGTH}자`}
+            />
+          </Input>
         </div>
         <div className={styles.locationNameSheetFooter}>
           <Button
             size="large"
             state={locationName ? 'active' : 'disabled'}
+            disabled={!locationName}
+            isLoading={isRegistering}
             onClick={handleRegisterLocation}
           >
             집합 장소 등록하기

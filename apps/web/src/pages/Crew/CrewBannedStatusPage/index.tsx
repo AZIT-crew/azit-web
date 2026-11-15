@@ -1,29 +1,42 @@
 import { vars } from '@azit/design-system';
 import { AppScreen } from '@stackflow/plugin-basic-ui';
 import { useSuspenseQuery } from '@tanstack/react-query';
+import { useEffect } from 'react';
 
-import {
-  CREW_JOIN_STATUS,
-  STATUS_CONTENT,
-} from '@/features/Crew/model/crewJoinStatus';
-import { useConfirmJoinStatus } from '@/features/Crew/model/useConfirmJoinStatus';
+import { useFlow } from '@/app/routes/stackflow';
+
+import { STATUS_CONTENT } from '@/features/Crew/model/crewJoinStatus';
 import { CrewJoinStatusSection } from '@/features/Crew/ui';
 
 import { userQueries } from '@/entities/User/api/queries';
 
 import { AsyncBoundary } from '@/shared/ui/async-boundary';
-import { PageErrorFallback } from '@/shared/ui/error';
+import { PageErrorFallback, QueryErrorFallback } from '@/shared/ui/error';
 import { AppLayout } from '@/shared/ui/layout';
 import { PageLoader } from '@/shared/ui/loading/PageLoader';
 
 function CrewBannedStatusContent() {
-  const { data: myCrewsData } = useSuspenseQuery(userQueries.myCrewsQuery());
+  const { replace } = useFlow();
+  const query = useSuspenseQuery(userQueries.myCrewsQuery());
+  const myCrewsData = query.data;
 
   const expelledCrew =
     myCrewsData?.find((c) => c.memberStatus === 'EXPELLED') ?? null;
-  const status = expelledCrew ? CREW_JOIN_STATUS.EXPELLED : null;
-
-  const { handleJoinStatus } = useConfirmJoinStatus(status);
+  useEffect(() => {
+    if (!query.isFetching && !query.isError && !expelledCrew)
+      replace('Mypage', {}, { animate: false });
+  }, [query.isFetching, query.isError, expelledCrew, replace]);
+  if (query.isError)
+    return (
+      <QueryErrorFallback
+        message="크루 상태를 확인하지 못했어요"
+        onRetry={() => {
+          void query.refetch();
+        }}
+        isRetrying={query.isFetching}
+      />
+    );
+  if (query.isFetching || !expelledCrew) return <PageLoader />;
 
   const crewName = expelledCrew?.crewName ?? '';
   const crewImageUrl = expelledCrew?.crewImageUrl ?? null;
@@ -37,9 +50,9 @@ function CrewBannedStatusContent() {
           profileImageSrc={crewImageUrl ?? '/azit.png'}
           primaryMessage={content.primaryMessage}
           secondaryMessage={content.secondaryMessage}
-          buttonText={content.buttonText}
+          buttonText="마이페이지로 이동"
           buttonState={content.buttonState}
-          onButtonClick={handleJoinStatus}
+          onButtonClick={() => replace('Mypage', {}, { animate: false })}
         />
       </AppLayout>
     </AppScreen>

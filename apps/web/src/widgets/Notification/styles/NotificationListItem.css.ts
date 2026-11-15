@@ -1,13 +1,17 @@
 import { vars, typography } from '@azit/design-system';
-import { style } from '@vanilla-extract/css';
+import { keyframes, style } from '@vanilla-extract/css';
 
 export const itemContainer = style({
+  padding: 0,
+  border: 'none',
+  textAlign: 'left',
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
   width: '100%',
   backgroundColor: vars.colors.white,
   cursor: 'pointer',
+  selectors: { '&:disabled': { cursor: 'default' } },
   borderBottom: `0.5px solid ${vars.colors.gray20}`,
 });
 
@@ -25,6 +29,7 @@ export const row = style({
 });
 
 export const leftContent = style({
+  minWidth: 0,
   display: 'flex',
   alignItems: 'center',
   gap: 10,
@@ -38,6 +43,7 @@ export const iconImage = style({
 });
 
 export const textWrapper = style({
+  minWidth: 0,
   display: 'flex',
   flexDirection: 'column',
   justifyContent: 'center',
@@ -109,3 +115,15 @@ export const dateText = style([
     padding: '4px 0',
   },
 ]);
+
+const spin = keyframes({ to: { transform: 'rotate(360deg)' } });
+export const spinner = style({
+  width: 16,
+  height: 16,
+  display: 'inline-block',
+  border: `2px solid ${vars.colors.gray20}`,
+  borderTopColor: vars.colors.blue70,
+  borderRadius: '50%',
+  animation: `${spin} 0.7s linear infinite`,
+  '@media': { '(prefers-reduced-motion: reduce)': { animation: 'none' } },
+});

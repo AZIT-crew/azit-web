@@ -2,29 +2,30 @@ import clsx from 'clsx';
 
 import * as styles from '@/widgets/Notification/styles/NotificationListItem.css.ts';
 
-import type { NotificationItem } from '@/shared/mock/notification';
+import type { NotificationItem } from '@/entities/Notification/model/types';
 
 interface NotificationListItemProps {
   item: NotificationItem;
   onClick: (item: NotificationItem) => void;
+  disabled?: boolean;
+  isOpening?: boolean;
 }
 
 export function NotificationListItem({
   item,
   onClick,
+  disabled,
+  isOpening,
 }: NotificationListItemProps) {
   return (
-    <div
+    <button
+      type="button"
       className={clsx(styles.itemContainer, !item.isRead && styles.unread)}
-      role="button"
-      tabIndex={0}
+      disabled={disabled}
+      aria-busy={isOpening || undefined}
+      aria-label={`${item.isRead ? '읽음' : '읽지 않음'} ${item.kind === 'crew-schedule' ? `${item.runType === 'REGULAR' ? '정기런' : '번개런'} ${item.crewName}` : item.title} ${item.description} ${item.date}`}
+      data-notification-id={item.id}
       onClick={() => onClick(item)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onClick(item);
-        }
-      }}
     >
       <div className={styles.row}>
         <div className={styles.leftContent}>
@@ -62,8 +63,14 @@ export function NotificationListItem({
             <p className={styles.descriptionText}>{item.description}</p>
           </div>
         </div>
-        <span className={styles.dateText}>{item.date}</span>
+        <span className={styles.dateText}>
+          {isOpening ? (
+            <span className={styles.spinner} aria-hidden />
+          ) : (
+            item.date
+          )}
+        </span>
       </div>
-    </div>
+    </button>
   );
 }

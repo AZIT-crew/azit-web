@@ -13,6 +13,7 @@ import { getCrewInfo } from '@/entities/Crew/api/getCrewInfo';
 import { getCrewJoinRequests } from '@/entities/Crew/api/getCrewJoinRequests';
 import { getCrewJoinStatus } from '@/entities/Crew/api/getCrewJoinStatus';
 import { getCrewMembers } from '@/entities/Crew/api/getCrewMembers';
+import { crewKeys } from '@/entities/Crew/api/keys';
 import { postCreateCrew } from '@/entities/Crew/api/postCreateCrew';
 import { postJoinCrew } from '@/entities/Crew/api/postJoinCrew';
 import { postReissueInvitationCode } from '@/entities/Crew/api/postReissueInvitationCode';
@@ -21,18 +22,21 @@ import { updateCrewInfo } from '@/entities/Crew/api/updateCrewInfo';
 import type { UpdateCrewInfoRequest } from '@/shared/api/models/crew';
 
 import { postApproveJoinRequest } from './postApproveJoinRequest';
-import { postConfirmJoinStatus } from './postConfirmJoinStatus';
 import { postRejectJoinRequest } from './postRejectJoinRequest';
 
 export const crewQueries = {
-  defaultKey: ['crew'] as const,
+  defaultKey: crewKeys.all,
   joinStatusKey: (crewId: number) =>
     [...crewQueries.defaultKey, 'join-status', crewId] as const,
-  crewInfoKey: () => [...crewQueries.defaultKey, 'info'] as const,
+  crewInfoKey: (invitationCode?: string) =>
+    [
+      ...crewQueries.defaultKey,
+      'info',
+      ...(invitationCode ? [invitationCode] : []),
+    ] as const,
   crewDetailInfoKey: (crewId: number) =>
     [...crewQueries.defaultKey, 'detail-info', crewId] as const,
-  crewMembersKey: (crewId: number) =>
-    [...crewQueries.defaultKey, 'crew-members', crewId] as const,
+  crewMembersKey: crewKeys.members,
   joinRequestsKey: (crewId: number) =>
     [...crewQueries.defaultKey, 'join-requests', crewId] as const,
   joinStatusQuery: (crewId: number) =>
@@ -41,12 +45,9 @@ export const crewQueries = {
       queryFn: () => getCrewJoinStatus(crewId),
       staleTime: 600000,
     }),
-  confirmJoinStatus: mutationOptions({
-    mutationFn: () => postConfirmJoinStatus(),
-  }),
   crewInfoQuery: (invitationCode: string) =>
     queryOptions({
-      queryKey: crewQueries.crewInfoKey(),
+      queryKey: crewQueries.crewInfoKey(invitationCode),
       queryFn: () => getCrewInfo(invitationCode),
       staleTime: 600000,
     }),

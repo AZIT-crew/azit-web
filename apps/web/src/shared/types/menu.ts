@@ -1,6 +1,8 @@
 interface BaseMenuItem {
   id: string;
   label: string;
+  disabled?: boolean;
+  isLoading?: boolean;
 }
 
 export interface NavigationMenuItem extends BaseMenuItem {

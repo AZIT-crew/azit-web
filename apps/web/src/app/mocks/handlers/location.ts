@@ -1,13 +1,14 @@
-import { http, HttpResponse } from 'msw';
-
-import { mockLocationSearchResults } from '@/shared/mock/schedule-location';
+import { mockApi } from '../api';
+import { mockLocationSearch } from '../data/location';
 
 export const locationHandlers = [
-  http.get('*/locations/search', () => {
-    return HttpResponse.json({
-      code: 'SUCCESS',
-      message: '요청에 성공했습니다.',
-      result: mockLocationSearchResults,
-    });
+  mockApi.get('/api/v1/locations/search', ({ request }) => {
+    const query = new URL(request.url).searchParams.get('query')?.trim() ?? '';
+    return {
+      ...mockLocationSearch,
+      result: mockLocationSearch.result.filter((place) =>
+        `${place.placeName} ${place.address}`.includes(query)
+      ),
+    };
   }),
 ];

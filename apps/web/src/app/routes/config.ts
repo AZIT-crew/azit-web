@@ -55,6 +55,10 @@ const NoticeDetailPage = lazyImport(
   () => import('@/pages/Home/NoticeDetailPage'),
   'NoticeDetailPage'
 );
+const NoticeListPage = lazyImport(
+  () => import('@/pages/Home/NoticeListPage'),
+  'NoticeListPage'
+);
 
 const AttendancePage = lazyImport(
   () => import('@/pages/Crew/CrewAttendancePage'),
@@ -125,19 +129,19 @@ export const routes = [
     name: 'OnboardingTermAgreePage',
     path: '/term-agree',
     element: OnboardingTermAgreePage,
-    withAuth: false,
+    withAuth: true,
   },
   {
     name: 'OnboardingPage',
     path: '/onboarding',
     element: OnboardingPage,
-    withAuth: false,
+    withAuth: true,
   },
   {
     name: 'OnboardingCompletePage',
     path: '/onboarding/complete',
     element: OnboardingCompletePage,
-    withAuth: false,
+    withAuth: true,
   },
   {
     name: 'LoginRedirectPage',
@@ -149,19 +153,19 @@ export const routes = [
     name: 'AppleLinkRedirectPage',
     path: '/auth/apple/link-callback',
     element: AppleLinkRedirectPage,
-    withAuth: false,
+    withAuth: true,
   },
   {
     name: 'HomePage',
     path: '/',
     element: HomePage,
-    withAuth: false,
+    withAuth: true,
   },
   {
     name: 'HomeNotificationPage',
     path: '/notification',
     element: HomeNotificationPage,
-    withAuth: false,
+    withAuth: true,
   },
   {
     name: 'NoticeDetailPage',
@@ -170,10 +174,16 @@ export const routes = [
     withAuth: true,
   },
   {
+    name: 'NoticeListPage',
+    path: '/notice',
+    element: NoticeListPage,
+    withAuth: true,
+  },
+  {
     name: 'SchedulePage',
     path: '/schedule',
     element: SchedulePage,
-    withAuth: false,
+    withAuth: true,
   },
   {
     name: 'ScheduleCreatePage',

@@ -1,25 +1,5 @@
-import { authApi } from '@/shared/api/apiClient';
-import { postReissueToken } from '@/shared/api/handlers/postReissueToken';
-import { createHttpMethods } from '@/shared/api/httpMethods';
-import { useAuthStore } from '@/shared/store/auth';
+import { auth } from '@/shared/api/apiClient';
 
-// 약관동의, 온보딩시 기존 API 호출 후 액세스 토큰 재발급 로직 추가
-const onboardingApi = authApi.extend({
-  hooks: {
-    afterResponse: [
-      async (_request, _options, response) => {
-        if (response.status === 200) {
-          const tokenResponse = await postReissueToken();
-
-          if (tokenResponse.result?.accessToken) {
-            useAuthStore
-              .getState()
-              .setAccessToken(tokenResponse.result.accessToken);
-          }
-        }
-      },
-    ],
-  },
-});
-
-export const onboarding = createHttpMethods(onboardingApi);
+// 크루 생성·가입은 회원 상태를 바꾸지 않는다. 성공마다 RTR 쿠키를 재교환하지 않는다.
+// 가입 약관 완료의 상태 갱신은 해당 화면에서 이동과 함께 처리한다.
+export const onboarding = auth;

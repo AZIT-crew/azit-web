@@ -25,16 +25,25 @@ import { AppLayout } from '@/shared/ui/layout';
 
 import * as styles from './index.css';
 
-export function ScheduleEditPage({ params }: { params: { id: number } }) {
+export function ScheduleEditPage({
+  params,
+}: {
+  params: { id: number; crewId?: number };
+}) {
   const { pop, push } = useFlow();
 
   const { id: scheduleId } = params;
 
   const queryClient = useQueryClient();
+  const isSubmittingRef = useRef(false);
 
   const { data: myCrewsData } = useQuery(userQueries.myCrewsQuery());
   const joinedCrew =
-    myCrewsData?.find((c) => c.memberStatus === 'JOINED') ?? null;
+    myCrewsData?.find(
+      (c) =>
+        c.memberStatus === 'JOINED' &&
+        (!params.crewId || c.crewId === Number(params.crewId))
+    ) ?? null;
   const crewId = joinedCrew?.crewId ?? 0;
   const isLeader = joinedCrew?.memberRole === MEMBER_ROLE.LEADER;
 
@@ -71,13 +80,18 @@ export function ScheduleEditPage({ params }: { params: { id: number } }) {
       queryClient.invalidateQueries({ queryKey: scheduleQueries.all });
       pop();
     },
+    onSettled: () => {
+      isSubmittingRef.current = false;
+    },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
     if (!validateForm() || crewId <= 0) return;
 
     const payload = buildUpdateSchedulePayload(formValues);
+    isSubmittingRef.current = true;
     updateMutation.mutate({ crewId, scheduleId, payload });
   };
 
@@ -115,6 +129,7 @@ export function ScheduleEditPage({ params }: { params: { id: number } }) {
               type="submit"
               form="schedule-edit-form"
               size="large"
+              isLoading={updateMutation.isPending}
               disabled={!isScheduleFormValid(formValues)}
               state={isScheduleFormValid(formValues) ? 'active' : 'disabled'}
             >

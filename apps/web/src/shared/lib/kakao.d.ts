@@ -9,6 +9,7 @@ interface KakaoPostcodeData {
 }
 
 interface KakaoPostcodeOptions {
+  submitMode?: boolean;
   oncomplete: (data: KakaoPostcodeData) => void;
   onresize?: (size: { height: number }) => void;
   width?: string;

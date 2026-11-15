@@ -1,117 +1,114 @@
-export const mockScheduleList = {
-  code: 'SUCCESS',
-  message: '요청에 성공했습니다.',
-  result: [
-    {
-      scheduleId: 1,
-      title: '한강 나이트 런',
-      runType: 'REGULAR',
-      meetingAt: '2026-11-15T19:30:00.000Z',
-      placeName: '반포 한강 공원',
-      distance: 5,
-      pace: 4,
-      maxParticipants: 20,
-      currentParticipants: 12,
-      isMine: true,
-      isParticipating: true,
-      createdAt: '2026-11-01T09:00:00.000Z',
-      status: 'ACTIVE',
-    },
-    {
-      scheduleId: 2,
-      title: '아침 조깅',
-      runType: 'LIGHTNING',
-      meetingAt: '2026-11-20T07:00:00.000Z',
-      placeName: '올림픽 공원',
-      distance: 3,
-      pace: 5,
-      maxParticipants: 10,
-      currentParticipants: 4,
-      isMine: false,
-      isParticipating: false,
-      createdAt: '2026-11-05T09:00:00.000Z',
-      status: 'ACTIVE',
-    },
-  ],
-};
+import dayjs from 'dayjs';
+import type { RequiredDeep } from 'type-fest';
 
-export const mockScheduleDetail = {
-  code: 'SUCCESS',
-  message: '요청에 성공했습니다.',
-  result: {
-    scheduleId: 1,
-    title: '한강 나이트 런',
-    runType: 'REGULAR',
-    meetingAt: '2026-11-15T19:30:00.000Z',
-    locationInfo: {
-      placeName: '반포 한강 공원',
-      address: '서울 서초구 반포동',
-      meetingSpot: '반포 한강공원 주차장 앞',
-      latitude: 37.5078,
-      longitude: 126.9947,
-    },
+import type { components } from '@/shared/api/apiTypes';
+
+export type MockScheduleDetail = RequiredDeep<
+  components['schemas']['CrewScheduleDetailResponse']
+>;
+export interface MockScheduleRecord {
+  crewId: number;
+  detail: MockScheduleDetail;
+}
+
+// 모든 일정 응답은 이 원본에서 파생한다. 새로고침/테스트 초기화 시 다시 생성한다.
+export function createScheduleSeeds(): MockScheduleRecord[] {
+  const now = dayjs();
+  const createdAt = now.subtract(7, 'day').format('YYYY-MM-DDTHH:mm:ss');
+  const common = {
     description: '함께 한강에서 달려요!',
     distance: 5,
     pace: 4,
     maxParticipants: 20,
-    currentParticipants: 12,
+    currentParticipants: 1,
     supplies: ['운동화', '물'],
-    creatorId: 1,
-    creatorNickname: '테스터',
     creatorProfileImageUrl: '/icons/icon-crew-default.svg',
-    creatorRole: 'LEADER',
-    isMine: true,
-    isParticipating: true,
     isCheckedIn: false,
     isModifiable: true,
     isParticipationModifiable: true,
-    participants: [
-      {
-        memberId: 1,
-        nickname: '테스터',
-        profileImageUrl: '/icons/icon-crew-default.svg',
-        role: 'LEADER',
-        isCreator: true,
-        participatedAt: '2026-11-01T09:00:00.000Z',
-      },
-    ],
     hasMoreParticipants: false,
-    createdAt: '2026-11-01T09:00:00.000Z',
-    status: 'ACTIVE',
-  },
-};
-
-export const mockScheduleCalendar = {
-  code: 'SUCCESS',
-  message: '요청에 성공했습니다.',
-  result: [
-    {
-      date: '2026-11-15',
-      schedules: [
-        {
-          scheduleId: 1,
-          title: '한강 나이트 런',
-          runType: 'REGULAR',
-        },
-      ],
+    createdAt,
+    status: 'ACTIVE' as const,
+  };
+  const participant = {
+    memberId: 1,
+    nickname: '테스터',
+    profileImageUrl: '/icons/icon-crew-default.svg',
+    role: 'LEADER' as const,
+    isCreator: true,
+    participatedAt: createdAt,
+  };
+  const regular: MockScheduleDetail = {
+    ...common,
+    scheduleId: 1,
+    title: '한강 나이트 런',
+    runType: 'REGULAR',
+    meetingAt: now
+      .add(1, 'day')
+      .hour(19)
+      .minute(30)
+      .second(0)
+      .format('YYYY-MM-DDTHH:mm:ss'),
+    locationInfo: {
+      placeName: '반포 한강 공원',
+      address: '서울 서초구 반포동',
+      meetingSpot: '주차장 앞',
+      latitude: 37.5078,
+      longitude: 126.9947,
     },
-  ],
-};
-
-export const mockParticipants = {
-  code: 'SUCCESS',
-  message: '요청에 성공했습니다.',
-  result: {
-    content: [
-      {
-        memberId: 1,
-        nickname: '테스터',
-        profileImageUrl: '/icons/icon-crew-default.svg',
-        role: 'LEADER',
-        isCreator: true,
-        participatedAt: '2026-11-01T09:00:00.000Z',
-      },
+    creatorId: 1,
+    creatorNickname: '테스터',
+    creatorRole: 'LEADER',
+    isMine: true,
+    isParticipating: true,
+    participants: [participant],
+  };
+  const lightning: MockScheduleDetail = {
+    ...common,
+    scheduleId: 2,
+    title: '아침 조깅',
+    runType: 'LIGHTNING',
+    meetingAt: now
+      .add(5, 'day')
+      .hour(7)
+      .minute(0)
+      .second(0)
+      .format('YYYY-MM-DDTHH:mm:ss'),
+    locationInfo: {
+      placeName: '올림픽 공원',
+      address: '서울 송파구 올림픽로 424',
+      meetingSpot: '평화의 문 앞',
+      latitude: 37.5207,
+      longitude: 127.1215,
+    },
+    distance: 3,
+    pace: 5,
+    maxParticipants: 10,
+    creatorId: 2,
+    creatorNickname: '멤버1',
+    creatorRole: 'MEMBER',
+    isMine: false,
+    isParticipating: false,
+    participants: [
+      { ...participant, memberId: 2, nickname: '멤버1', role: 'MEMBER' },
     ],
-    hasNext: false,
-  },
-};
+  };
+  return [
+    { crewId: 1, detail: regular },
+    { crewId: 1, detail: lightning },
+    {
+      crewId: 2,
+      detail: {
+        ...structuredClone(lightning),
+        scheduleId: 3,
+        title: '새벽 달리기',
+        meetingAt: now
+          .add(2, 'day')
+          .hour(7)
+          .minute(0)
+          .second(0)
+          .format('YYYY-MM-DDTHH:mm:ss'),
+      },
+    },
+  ];
+}

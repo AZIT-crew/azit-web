@@ -790,10 +790,10 @@ export interface paths {
          *     * 부분 갱신입니다. 변경할 항목만 담아 보내고, 건드리지 않을 항목은 null로 두거나 생략하세요. <br>
          *     * 예) 마케팅만 끄기: { "marketingAgreed": false } <br><br>
          *
-         *     **[처리 내용]** <br>
-         *     * 동의 시 최신 약관 버전에 대한 동의가 저장되고, 이미 동의한 상태라면 동의 시점이 갱신됩니다. <br>
-         *     * 동의/거부와 관계없이 변경 이력이 저장됩니다. <br>
-         *     * 같은 값으로 다시 호출해도 오류 없이 변경 시점만 갱신됩니다. <br><br>
+         *     **[전체 알림(notificationAgreed)과 크루별 알림의 관계]** <br>
+         *     * notificationAgreed=true: 참여 중인 모든 크루의 알림이 함께 켜집니다. <br>
+         *     * notificationAgreed=false: 약관 동의만 철회되고 크루별 설정은 그대로 보존됩니다.<br>
+         *     * 반대로 크루별 알림을 모두 끄거나 켜도 전체 알림 값은 바뀌지 않습니다. <br><br>
          *
          *     **[참고 사항]** <br>
          *     * 두 항목이 모두 null이면 변경할 대상이 없으므로 거부됩니다. (INVALID_INPUT_VALUE) <br>
@@ -841,6 +841,36 @@ export interface paths {
          *        - S3 작업 없이 닉네임만 수정됨
          */
         patch: operations["updateMemberProfile"];
+        trace?: never;
+    };
+    "/api/v1/members/me/crews/{crewId}/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * 크루별 알림 설정 변경
+         * @description 특정 크루의 알림 설정을 변경합니다. **부분 갱신**이라 바꿀 항목만 담아 보내면 됩니다. <br><br>
+         *
+         *     **[요청 방식]** <br>
+         *     * 크루 '전체알림' 토글: { "allEnabled": false } → 정기런·번개런이 한 번에 변경됩니다. <br>
+         *     * 개별 토글: { "regularRunEnabled": false } <br>
+         *     * 두 값을 함께 보내면 allEnabled를 먼저 적용한 뒤 개별 값으로 덮어씁니다. <br><br>
+         *
+         *     **[참고 사항]** <br>
+         *     * 정기런·번개런 중 하나라도 꺼지면 응답의 allEnabled는 false가 됩니다. <br>
+         *     * 세 항목이 모두 null이면 변경할 대상이 없으므로 거부됩니다. (INVALID_INPUT_VALUE) <br>
+         *     * 가입 완료(JOINED) 상태인 크루만 설정할 수 있습니다. (NOT_A_CREW_MEMBER)
+         */
+        patch: operations["updateCrewNotificationSetting"];
         trace?: never;
     };
     "/api/v1/crews/{crewId}/info": {
@@ -1142,6 +1172,31 @@ export interface paths {
          *     * invitationCode: JOINED 상태일 때 값이 존재하며, 그 외의 경우(REQUESTED 등)에는 null로 내려갑니다.
          */
         get: operations["getMyCrews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/members/me/crews/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 크루별 알림 설정 조회
+         * @description '크루별 알림 설정' 화면에 필요한, 참여 중인 크루(JOINED) 목록과 크루별 알림 설정을 반환합니다. <br><br>
+         *
+         *     **[참고 사항]** <br>
+         *     * 알림 설정을 한 번도 변경하지 않은 크루는 모두 켜진 상태(true)로 세팅됩니다. <br>
+         *     * 크루를 나가거나 방출되면 해당 크루의 알림 설정은 삭제되므로, 재가입 시 모두 켜진 상태로 초기화됩니다. <br>
+         *     * 참여 중인 크루가 없으면 빈 배열을 반환합니다. <br>
+         */
+        get: operations["getCrewNotificationSettings"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2032,6 +2087,36 @@ export interface components {
              */
             imageUrl: string;
         };
+        UpdateCrewNotificationSettingRequest: {
+            /** @description 크루 전체알림 (지정하면 정기런·번개런을 한 번에 변경, null이면 변경하지 않음) */
+            allEnabled?: boolean | null;
+            /** @description 정기런 알림 여부 (null이면 변경하지 않음) */
+            regularRunEnabled?: boolean | null;
+            /** @description 번개런 알림 여부 (null이면 변경하지 않음) */
+            lightningRunEnabled?: boolean | null;
+        };
+        CommonResponseCrewNotificationSettingResponse: {
+            code?: string;
+            message?: string;
+            result?: components["schemas"]["CrewNotificationSettingResponse"];
+        };
+        CrewNotificationSettingResponse: {
+            /**
+             * Format: int64
+             * @description 크루 ID
+             */
+            crewId: number;
+            /** @description 크루 이름 */
+            crewName: string;
+            /** @description 크루 이미지 URL */
+            crewImageUrl: string | null;
+            /** @description 크루 전체알림 토글. 정기런·번개런이 모두 켜져 있을 때만 true */
+            allEnabled: boolean;
+            /** @description 정기런 알림 */
+            regularRunEnabled: boolean;
+            /** @description 번개런 알림 */
+            lightningRunEnabled: boolean;
+        };
         UpdateCrewProfileRequest: {
             /**
              * @description 변경할 크루 이미지 URL
@@ -2580,6 +2665,11 @@ export interface components {
             memberStatus?: "REQUESTED" | "JOINED" | "REJECTED" | "EXITED" | "EXPELLED" | "CANCELLED";
             /** @description 크루 초대 코드 */
             invitationCode?: string;
+        };
+        CommonResponseListCrewNotificationSettingResponse: {
+            code?: string;
+            message?: string;
+            result?: components["schemas"]["CrewNotificationSettingResponse"][];
         };
         CheckInStatusResponse: {
             /** @description 오늘 참여할 일정이 있는지 여부 */
@@ -5627,6 +5717,73 @@ export interface operations {
             };
         };
     };
+    updateCrewNotificationSetting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 크루 ID */
+                crewId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCrewNotificationSettingRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CommonResponseCrewNotificationSettingResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
     getCrewInfo: {
         parameters: {
             query?: never;
@@ -6422,6 +6579,66 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    getCrewNotificationSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CommonResponseListCrewNotificationSettingResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

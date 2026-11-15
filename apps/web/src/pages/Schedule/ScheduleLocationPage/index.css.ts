@@ -94,3 +94,7 @@ export const locationNameInputWrapper = style({
 export const locationNameSheetFooter = style({
   width: '100%',
 });
+export const searchStatus = style([
+  typography.body.b2,
+  { color: vars.colors.gray60, padding: 24, textAlign: 'center' },
+]);

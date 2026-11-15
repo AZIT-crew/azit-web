@@ -9,13 +9,14 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query';
-import { useMemo, Suspense, type ReactNode } from 'react';
+import { useMemo, useRef, Suspense, type ReactNode } from 'react';
 
 import { useFlow } from '@/app/routes/stackflow';
 
 import { ScheduleDetailSkeleton } from '@/widgets/Skeleton/ui';
 
 import { scheduleQueries } from '@/features/Schedule/api/queries';
+import { useScheduleDetailQuery } from '@/features/Schedule/model/useScheduleDetailQuery';
 import { useScheduleParticipateActions } from '@/features/Schedule/model/useScheduleParticipateActions';
 import {
   ScheduleDetailHeaderSection,
@@ -36,7 +37,11 @@ import { userQueries } from '@/entities/User/api/queries';
 import { bridge } from '@/shared/lib/bridge';
 import { useStack } from '@/shared/lib/stackflow/useStack';
 import { BackButton } from '@/shared/ui/button';
-import { BusinessErrorFallback, DomainErrorBoundary } from '@/shared/ui/error';
+import {
+  BusinessErrorFallback,
+  DomainErrorBoundary,
+  QueryErrorFallback,
+} from '@/shared/ui/error';
 import { AppLayout } from '@/shared/ui/layout';
 import { Show } from '@/shared/ui/show';
 
@@ -76,14 +81,16 @@ const transformScheduleDetail = (detail: CrewScheduleDetailResponse) => {
 };
 
 interface ScheduleDetailPageProps {
-  params: { id: number };
+  params: { id: number; crewId?: number };
 }
 
 function ScheduleDetailContent({
   scheduleId,
   onBack,
+  requestedCrewId,
 }: {
   scheduleId: number;
+  requestedCrewId?: number;
   onBack: () => void;
 }) {
   const { push } = useFlow();
@@ -91,11 +98,14 @@ function ScheduleDetailContent({
 
   const { data: myCrewsData } = useSuspenseQuery(userQueries.myCrewsQuery());
   const crewId =
-    myCrewsData.find((c) => c.memberStatus === 'JOINED')?.crewId ?? 0;
+    myCrewsData.find(
+      (c) =>
+        c.memberStatus === 'JOINED' &&
+        (!requestedCrewId || c.crewId === Number(requestedCrewId))
+    )?.crewId ?? 0;
 
-  const { data: scheduleDetailData } = useSuspenseQuery(
-    scheduleQueries.scheduleDetailQuery(crewId, scheduleId)
-  );
+  const detailQuery = useScheduleDetailQuery(crewId, scheduleId);
+  const scheduleDetailData = detailQuery.data;
 
   const scheduleDetailViewData = useMemo(
     () => transformScheduleDetail(scheduleDetailData.result),
@@ -108,36 +118,46 @@ function ScheduleDetailContent({
       scheduleId,
     });
 
+  const isDeletingRef = useRef(false);
   const deleteScheduleMutation = useMutation({
     ...scheduleQueries.deleteSchedule,
-    onSuccess: () => {
+    onSuccess: async () => {
       onBack();
 
       queryClient.removeQueries({
         queryKey: scheduleQueries.detail(scheduleId),
+        // 닫히는 중인 상세의 캐시를 제거하면 observer가 삭제된 일정을 재요청한다.
+        type: 'inactive',
       });
-      queryClient.invalidateQueries({
+      await queryClient.invalidateQueries({
         queryKey: scheduleQueries.all,
         predicate: (query) => {
           const [, type] = query.queryKey;
-          return type !== 'detail';
+          return (
+            type !== 'detail' &&
+            !(type === 'participants' && query.queryKey[2] === scheduleId)
+          );
         },
       });
+    },
+    onSettled: () => {
+      isDeletingRef.current = false;
     },
   });
 
   const handleEdit = () => {
-    push('ScheduleEditPage', { id: scheduleId });
+    if (isDeletingRef.current) return;
+    push('ScheduleEditPage', { id: scheduleId, crewId });
   };
 
   const handleDelete = () => {
-    if (crewId > 0 && scheduleId > 0) {
-      deleteScheduleMutation.mutate({ crewId, scheduleId });
-    }
+    if (isDeletingRef.current || crewId <= 0 || scheduleId <= 0) return;
+    isDeletingRef.current = true;
+    deleteScheduleMutation.mutate({ crewId, scheduleId });
   };
 
   const handleSeeMoreParticipants = () => {
-    push('ScheduleMembersPage', { id: scheduleId });
+    push('ScheduleMembersPage', { id: scheduleId, crewId });
   };
 
   const isCreator = scheduleDetailViewData.isCreator;
@@ -200,64 +220,81 @@ function ScheduleDetailContent({
         />
       </div>
       <div className={styles.footerWrapper}>
-        <Show when={!!isCheckedIn}>
-          <Button size="large" state="disabled">
-            이미 참여한 일정이에요
-          </Button>
-        </Show>
-        <Show when={!isCheckedIn && !isCreator && isFull && !isParticipating}>
-          <Button size="large" state="disabled">
-            신청이 마감되었어요
-          </Button>
-        </Show>
-        <Show when={!isCheckedIn && isCreator}>
-          <div className={styles.creatorButtonWrapper}>
-            <AlertDialog
-              trigger={
+        {detailQuery.isError ? (
+          <QueryErrorFallback
+            message="일정 정보를 새로 불러오지 못했어요"
+            onRetry={() => {
+              void detailQuery.refetch();
+            }}
+            isRetrying={detailQuery.isFetching}
+          />
+        ) : (
+          <>
+            <Show when={!!isCheckedIn}>
+              <Button size="large" state="disabled">
+                이미 참여한 일정이에요
+              </Button>
+            </Show>
+            <Show
+              when={!isCheckedIn && !isCreator && isFull && !isParticipating}
+            >
+              <Button size="large" state="disabled">
+                신청이 마감되었어요
+              </Button>
+            </Show>
+            <Show when={!isCheckedIn && isCreator}>
+              <div className={styles.creatorButtonWrapper}>
+                <AlertDialog
+                  trigger={
+                    <Button
+                      size="large"
+                      state={isModifiable ? 'outline' : 'disabled'}
+                      isLoading={deleteScheduleMutation.isPending}
+                    >
+                      삭제하기
+                    </Button>
+                  }
+                  title="일정을 삭제하시겠어요?"
+                  description="삭제된 일정은 복구할 수 없어요"
+                  actionText="삭제하기"
+                  cancelText="취소하기"
+                  onAction={handleDelete}
+                  actionDisabled={deleteScheduleMutation.isPending}
+                />
                 <Button
                   size="large"
-                  state={isModifiable ? 'outline' : 'disabled'}
+                  state={isModifiable ? 'active' : 'disabled'}
+                  onClick={handleEdit}
+                  disabled={deleteScheduleMutation.isPending}
                 >
-                  삭제하기
+                  수정하기
                 </Button>
-              }
-              title="일정을 삭제하시겠어요?"
-              description="삭제된 일정은 복구할 수 없어요"
-              actionText="삭제하기"
-              cancelText="취소하기"
-              onAction={handleDelete}
-            />
-            <Button
-              size="large"
-              state={isModifiable ? 'active' : 'disabled'}
-              onClick={handleEdit}
+              </div>
+            </Show>
+            <Show when={!isCheckedIn && !isCreator && isParticipating}>
+              <Button
+                size="large"
+                state={!isParticipationModifiable ? 'disabled' : 'outline'}
+                isLoading={isPending}
+                onClick={cancelParticipation}
+              >
+                취소하기
+              </Button>
+            </Show>
+            <Show
+              when={!isCheckedIn && !isCreator && !isFull && !isParticipating}
             >
-              수정하기
-            </Button>
-          </div>
-        </Show>
-        <Show when={!isCheckedIn && !isCreator && isParticipating}>
-          <Button
-            size="large"
-            state={
-              isPending || !isParticipationModifiable ? 'disabled' : 'outline'
-            }
-            onClick={cancelParticipation}
-          >
-            취소하기
-          </Button>
-        </Show>
-        <Show when={!isCheckedIn && !isCreator && !isFull && !isParticipating}>
-          <Button
-            size="large"
-            onClick={participate}
-            state={
-              isPending || !isParticipationModifiable ? 'disabled' : 'active'
-            }
-          >
-            신청하기
-          </Button>
-        </Show>
+              <Button
+                size="large"
+                onClick={participate}
+                state={!isParticipationModifiable ? 'disabled' : 'active'}
+                isLoading={isPending}
+              >
+                신청하기
+              </Button>
+            </Show>
+          </>
+        )}
       </div>
     </>
   );
@@ -300,7 +337,11 @@ export function ScheduleDetailPage({ params }: ScheduleDetailPageProps) {
               </>
             }
           >
-            <ScheduleDetailContent scheduleId={params.id} onBack={handleBack} />
+            <ScheduleDetailContent
+              scheduleId={params.id}
+              requestedCrewId={params.crewId}
+              onBack={handleBack}
+            />
           </Suspense>
         </DomainErrorBoundary>
       </AppLayout>

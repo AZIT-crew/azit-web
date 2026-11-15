@@ -15,6 +15,10 @@ interface SettingsMenuOptions {
   onToggleAllNotification: (checked: boolean) => void;
   marketingConsentEnabled: boolean;
   marketingConsentDescription?: string;
+  consentDisabled?: boolean;
+  pendingConsent?: 'marketing' | 'notification';
+  accountBusy?: boolean;
+  isLoggingOut?: boolean;
   onToggleMarketingConsent: (checked: boolean) => void;
 }
 
@@ -27,6 +31,10 @@ export const getSettingsMenu = ({
   onToggleAllNotification,
   marketingConsentEnabled,
   marketingConsentDescription,
+  consentDisabled,
+  pendingConsent,
+  accountBusy,
+  isLoggingOut,
   onToggleMarketingConsent,
 }: SettingsMenuOptions): MenuGroup[] => [
   {
@@ -73,6 +81,8 @@ export const getSettingsMenu = ({
         label: '전체 알림',
         type: 'toggle',
         checked: allNotificationEnabled,
+        disabled: consentDisabled,
+        isLoading: pendingConsent === 'notification',
         onToggle: onToggleAllNotification,
       },
       {
@@ -87,6 +97,8 @@ export const getSettingsMenu = ({
         type: 'toggle',
         description: marketingConsentDescription,
         checked: marketingConsentEnabled,
+        disabled: consentDisabled,
+        isLoading: pendingConsent === 'marketing',
         onToggle: onToggleMarketingConsent,
       },
     ],
@@ -106,6 +118,8 @@ export const getSettingsMenu = ({
         label: '로그아웃',
         type: 'action',
         onAction: onLogout,
+        disabled: accountBusy,
+        isLoading: isLoggingOut,
       },
     ],
   },

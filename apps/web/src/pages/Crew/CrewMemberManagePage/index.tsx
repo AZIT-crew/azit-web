@@ -1,16 +1,11 @@
 import { vars } from '@azit/design-system';
 import { Header } from '@azit/design-system/header';
 import { AppScreen } from '@stackflow/plugin-basic-ui';
-import {
-  useMutation,
-  useQuery,
-  useSuspenseQuery,
-  useSuspenseInfiniteQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRef, useState } from 'react';
 
 import { crewQueries } from '@/features/Crew/api/queries';
+import { useCrewMembers } from '@/features/Crew/model/useCrewMembers';
 import {
   MemberList,
   MemberManagementTab,
@@ -19,14 +14,12 @@ import {
 } from '@/features/Crew/ui';
 
 import { userQueries } from '@/entities/User/api/queries';
-import type { MemberItem } from '@/entities/User/model';
 
 import { MEMBER_ROLE } from '@/shared/constants/member-role';
 import { useInfiniteScroll } from '@/shared/lib/useInfiniteScroll';
 import { usePullToRefresh } from '@/shared/lib/usePullToRefresh';
-import { AsyncBoundary } from '@/shared/ui/async-boundary';
 import { BackButton } from '@/shared/ui/button';
-import { PageErrorFallback } from '@/shared/ui/error';
+import { PageErrorFallback, QueryErrorFallback } from '@/shared/ui/error';
 import { AppLayout } from '@/shared/ui/layout';
 import { PageLoader } from '@/shared/ui/loading/PageLoader';
 import { spinner as pageLoaderSpinner } from '@/shared/ui/loading/PageLoader.css.ts';
@@ -42,72 +35,42 @@ function MemberListContent({
 }) {
   const queryClient = useQueryClient();
 
-  const { data: myCrewsData } = useSuspenseQuery(userQueries.myCrewsQuery());
-  const crew = myCrewsData?.find((c) => c.crewId === crewId) ?? null;
+  const query = useCrewMembers(crewId);
+  const isDeletingRef = useRef(false);
 
-  const {
-    data: membersData,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    refetch: refetchMembers,
-  } = useSuspenseInfiniteQuery(crewQueries.crewMembersQuery(crewId));
-
-  const { scrollRef: infiniteScrollRef, bottomSentinelRef } = useInfiniteScroll(
-    {
-      hasNextPage: hasNextPage ?? false,
-      isFetchingNextPage,
-      fetchNextPage,
-    }
-  );
-
-  const {
-    scrollRef: pullScrollRef,
-    isRefreshing: isPullRefreshing,
-    pullProgress,
-  } = usePullToRefresh({
-    enabled: crewId > 0,
-    onRefresh: async () => {
-      await refetchMembers();
-    },
+  const { bottomSentinelRef } = useInfiniteScroll({
+    scrollRef: containerRef,
+    hasNextPage: query.hasNextPage && !query.isError,
+    isFetchingNextPage: query.isFetchingNextPage,
+    fetchNextPage: query.fetchNextPage,
   });
 
-  useLayoutEffect(() => {
-    infiniteScrollRef.current = containerRef.current;
-    pullScrollRef.current = containerRef.current;
+  const { isRefreshing: isPullRefreshing, pullProgress } = usePullToRefresh({
+    scrollRef: containerRef,
+    enabled: crewId > 0,
+    onRefresh: async () => {
+      await query.refetch();
+    },
   });
 
   const deleteMutation = useMutation({
     ...crewQueries.deleteCrewMember,
-    onSuccess: () => {
-      queryClient.invalidateQueries({
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
         queryKey: crewQueries.crewMembersKey(crewId),
       });
     },
+    onSettled: () => {
+      isDeletingRef.current = false;
+    },
   });
 
-  if (!crew) return null;
-
-  const isLeader = crew.memberRole === MEMBER_ROLE.LEADER;
-  const handleDeleteMember = isLeader
-    ? (targetMemberId: number) =>
-        deleteMutation.mutate({ crewId, targetMemberId })
-    : undefined;
-
-  const members: MemberItem[] =
-    membersData?.pages.flatMap(
-      (page) =>
-        page.result.content?.map((member) => ({
-          id: member.id!,
-          memberId: member.memberId!,
-          nickname: member.nickname!,
-          profileImageUrl: member.profileImageUrl!,
-          role: member.role!,
-          joinedDate: member.joinedDate!,
-        })) ?? []
-    ) ?? [];
-
-  const totalCount = membersData?.pages[0]?.result?.totalCount;
+  const handleDeleteMember = (targetMemberId: number) => {
+    if (isDeletingRef.current || query.isError) return;
+    isDeletingRef.current = true;
+    deleteMutation.mutate({ crewId, targetMemberId });
+  };
+  if (query.isPending) return <PageLoader />;
 
   return (
     <>
@@ -125,16 +88,30 @@ function MemberListContent({
           )}
         </div>
       )}
-      <p className={styles.totalCount}>총 {totalCount ?? members.length}명</p>
+      {query.data && (
+        <p className={styles.totalCount}>총 {query.totalCount}명</p>
+      )}
       <MemberList
-        members={members}
-        onDeleteMember={handleDeleteMember}
+        members={query.members}
+        onDeleteMember={query.isError ? undefined : handleDeleteMember}
         isDeletingMemberId={
           deleteMutation.isPending
             ? deleteMutation.variables?.targetMemberId
             : undefined
         }
       />
+      {query.isError ? (
+        <QueryErrorFallback
+          message="멤버 목록을 불러오지 못했어요"
+          onRetry={query.retry}
+          isRetrying={query.isFetching}
+        />
+      ) : query.members.length === 0 ? (
+        <p>크루 멤버가 없어요</p>
+      ) : null}
+      {query.isFetchingNextPage && (
+        <p role="status">멤버를 불러오는 중이에요</p>
+      )}
       <div ref={bottomSentinelRef} className={styles.sentinel} aria-hidden />
     </>
   );
@@ -147,25 +124,19 @@ function RequestListContent({
   crewId: number;
   containerRef: React.RefObject<HTMLDivElement | null>;
 }) {
-  const { data: joinRequestsData, refetch: refetchRequests } = useSuspenseQuery(
-    crewQueries.joinRequestsQuery(crewId)
-  );
-
-  const requests = joinRequestsData?.result ?? [];
-
-  const {
-    scrollRef: pullScrollRef,
-    isRefreshing: isPullRefreshing,
-    pullProgress,
-  } = usePullToRefresh({
-    enabled: crewId > 0,
-    onRefresh: async () => {
-      await refetchRequests();
-    },
+  const query = useQuery({
+    ...crewQueries.joinRequestsQuery(crewId),
+    throwOnError: false,
   });
 
-  useLayoutEffect(() => {
-    pullScrollRef.current = containerRef.current;
+  const requests = query.data?.result ?? [];
+
+  const { isRefreshing: isPullRefreshing, pullProgress } = usePullToRefresh({
+    scrollRef: containerRef,
+    enabled: crewId > 0,
+    onRefresh: async () => {
+      await query.refetch();
+    },
   });
 
   return (
@@ -184,7 +155,17 @@ function RequestListContent({
           )}
         </div>
       )}
-      {requests.length > 0 ? (
+      {query.isError ? (
+        <QueryErrorFallback
+          message="가입 요청 목록을 불러오지 못했어요"
+          onRetry={() => {
+            void query.refetch();
+          }}
+          isRetrying={query.isFetching}
+        />
+      ) : query.isPending ? (
+        <PageLoader />
+      ) : requests.length > 0 ? (
         <RequestList crewId={crewId} requests={requests} />
       ) : (
         <RequestListEmpty />
@@ -203,12 +184,31 @@ export function CrewMemberManagePage({
   );
   const crewId = Number(params?.id) || 0;
   const mainContainerRef = useRef<HTMLDivElement | null>(null);
-
-  const { data: joinRequestsData } = useQuery({
-    ...crewQueries.joinRequestsQuery(crewId),
-    enabled: crewId > 0,
+  const crewsQuery = useQuery({
+    ...userQueries.myCrewsQuery(),
+    throwOnError: false,
   });
-  const requestCount = joinRequestsData?.result?.length ?? 0;
+  const isLeader =
+    crewsQuery.data?.some(
+      (crew) =>
+        crew.crewId === crewId &&
+        crew.memberStatus === 'JOINED' &&
+        crew.memberRole === MEMBER_ROLE.LEADER
+    ) ?? false;
+
+  const {
+    data: joinRequestsData,
+    isError: isRequestsError,
+    isPending: isRequestsPending,
+  } = useQuery({
+    ...crewQueries.joinRequestsQuery(crewId),
+    enabled: crewId > 0 && isLeader,
+    throwOnError: false,
+  });
+  const requestCount =
+    isRequestsError || isRequestsPending
+      ? undefined
+      : (joinRequestsData?.result?.length ?? 0);
 
   return (
     <AppScreen backgroundColor={vars.colors.white}>
@@ -225,30 +225,28 @@ export function CrewMemberManagePage({
           className={`${styles.mainContainer}${activeTab === 'request' ? ` ${styles.noPaddingTop}` : ''}`}
           ref={mainContainerRef}
         >
-          {activeTab === 'request' ? (
-            <AsyncBoundary
-              suspenseFallback={<PageLoader />}
-              errorFallback={
-                <PageErrorFallback message="가입 요청 목록을 불러오지 못했어요" />
-              }
-            >
-              <RequestListContent
-                crewId={crewId}
-                containerRef={mainContainerRef}
-              />
-            </AsyncBoundary>
+          {crewsQuery.isError ? (
+            <QueryErrorFallback
+              message="크루 정보를 불러오지 못했어요"
+              onRetry={() => {
+                void crewsQuery.refetch();
+              }}
+              isRetrying={crewsQuery.isFetching}
+            />
+          ) : crewsQuery.isPending ? (
+            <PageLoader />
+          ) : !isLeader ? (
+            <PageErrorFallback message="크루 리더만 멤버를 관리할 수 있어요" />
+          ) : activeTab === 'request' ? (
+            <RequestListContent
+              crewId={crewId}
+              containerRef={mainContainerRef}
+            />
           ) : (
-            <AsyncBoundary
-              suspenseFallback={<PageLoader />}
-              errorFallback={
-                <PageErrorFallback message="멤버 목록을 불러오지 못했어요" />
-              }
-            >
-              <MemberListContent
-                crewId={crewId}
-                containerRef={mainContainerRef}
-              />
-            </AsyncBoundary>
+            <MemberListContent
+              crewId={crewId}
+              containerRef={mainContainerRef}
+            />
           )}
         </div>
       </AppLayout>

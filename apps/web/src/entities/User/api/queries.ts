@@ -21,6 +21,7 @@ const getAttendanceFreshnessOptions = (yearMonth?: string) =>
 
 import { deleteUnlinkSocialAccount } from '@/shared/auth/api/deleteUnlinkSocialAccount';
 
+import { getCrewNotificationSettings } from './getCrewNotificationSettings';
 import { getJoinedCrews } from './getJoinedCrews';
 import { getMyAttendance } from './getMyAttendance';
 import { getMyAttendanceCalendar } from './getMyAttendanceCalendar';
@@ -28,6 +29,7 @@ import { getMyCrews } from './getMyCrews';
 import { getMyInfo } from './getMyInfo';
 import { getMyProviders } from './getMyProviders';
 import { getOptionalTerms } from './getOptionalTerms';
+import { updateCrewNotificationSetting } from './updateCrewNotificationSetting';
 import { updateMyProfile } from './updateMyProfile';
 import { updateOptionalTerms } from './updateOptionalTerms';
 
@@ -37,6 +39,19 @@ export const userQueries = {
   myCrewsKey: () => [...userQueries.all, 'my-crews'] as const,
   myProvidersKey: () => [...userQueries.all, 'providers'] as const,
   optionalTermsKey: () => [...userQueries.all, 'optional-terms'] as const,
+  crewNotificationsKey: () =>
+    [...userQueries.all, 'crew-notifications'] as const,
+  crewNotificationSettingsQuery: () =>
+    queryOptions({
+      queryKey: userQueries.crewNotificationsKey(),
+      queryFn: getCrewNotificationSettings,
+      select: (data) => data.result,
+      staleTime: 0,
+      refetchOnMount: 'always',
+    }),
+  updateCrewNotificationSetting: mutationOptions({
+    mutationFn: updateCrewNotificationSetting,
+  }),
   attendanceKey: (request?: MyAttendanceRequest) =>
     [...userQueries.all, 'attendance', request] as const,
   calendarKey: (request?: MyAttendanceCalendarRequest) =>
@@ -53,6 +68,15 @@ export const userQueries = {
       queryKey: userQueries.myCrewsKey(),
       queryFn: () => getMyCrews(),
       staleTime: 1000 * 60 * 60 * 3,
+      refetchOnMount: 'always',
+      refetchOnWindowFocus: 'always',
+      refetchInterval: (query) =>
+        query.state.data?.result?.some(
+          (crew) => crew.memberStatus === 'REQUESTED'
+        )
+          ? 1000 * 10
+          : false,
+      refetchIntervalInBackground: false,
       select: (data) => data.result ?? [],
     }),
   joinedCrewsQuery: () =>

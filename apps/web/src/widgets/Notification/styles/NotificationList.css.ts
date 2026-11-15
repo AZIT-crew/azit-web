@@ -20,3 +20,9 @@ export const itemsContainer = style({
   flexDirection: 'column',
   width: '100%',
 });
+
+export const empty = style({
+  textAlign: 'center',
+  padding: 32,
+  color: vars.colors.gray60,
+});

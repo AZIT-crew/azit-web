@@ -6,8 +6,10 @@ import { useSuspenseQuery } from '@tanstack/react-query';
 
 import { useFlow } from '@/app/routes/stackflow';
 
+import { MyCrewInfoSection } from '@/widgets/User/ui/MyCrewInfoSection';
+
 import { userQueries } from '@/entities/User/api/queries';
-import { MyCrewInfoSection, MyProfileSection } from '@/entities/User/ui';
+import { MyProfileSection } from '@/entities/User/ui';
 
 import {
   GOOGLE_FORM_URL,
@@ -35,8 +37,8 @@ function useMypageMenu(): MenuGroup[] {
         {
           id: 'notice',
           label: '공지사항',
-          type: 'action',
-          onAction: () => {},
+          type: 'navigation',
+          onNavigate: () => push('NoticeListPage', {}),
         },
         {
           id: 'inquiry-support',
@@ -91,20 +93,22 @@ function MyPageContent() {
 
   return (
     <div className={styles.mainContainer}>
-      {myInfo && (
-        <MyProfileSection
-          profile={myInfo}
-          navigateToMyProfileEditPage={navigateToMyProfileEditPage}
+      <div className={styles.contentWrapper}>
+        {myInfo && (
+          <MyProfileSection
+            profile={myInfo}
+            navigateToMyProfileEditPage={navigateToMyProfileEditPage}
+          />
+        )}
+        <MyCrewInfoSection
+          crews={crews}
+          onNavigateToCrew={handleNavigateToCrew}
+          onCreateNewCrew={handleCreateNewCrew}
         />
-      )}
-      <MyCrewInfoSection
-        crews={crews}
-        onNavigateToCrew={handleNavigateToCrew}
-        onCreateNewCrew={handleCreateNewCrew}
-      />
-      {filteredMenu.map((section) => (
-        <MenuSection key={section.id} section={section} />
-      ))}
+        {filteredMenu.map((section) => (
+          <MenuSection key={section.id} section={section} />
+        ))}
+      </div>
     </div>
   );
 }

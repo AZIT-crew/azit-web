@@ -34,6 +34,18 @@ export const contentSection = style({
   alignItems: 'flex-start',
 });
 
+export const selectionButton = style([
+  contentSection,
+  {
+    border: 0,
+    padding: 0,
+    textAlign: 'left',
+    background: 'transparent',
+    cursor: 'pointer',
+    selectors: { '&:disabled': { cursor: 'default' } },
+  },
+]);
+
 export const recipientRow = style({
   display: 'flex',
   flexDirection: 'row',

@@ -9,12 +9,19 @@ export const mainContainer = style([
   layoutStyles.mainContainer,
   {
     backgroundColor: 'transparent',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 24,
-    padding: '20px 20px 100px',
+    display: 'block',
   },
 ]);
+
+// Keep padding off the scrollport: affected WebKit versions exclude it from
+// scrollHeight on flex columns (https://bugs.webkit.org/show_bug.cgi?id=316902).
+export const contentWrapper = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 24,
+  width: '100%',
+  padding: '20px 20px 100px',
+});
 
 export const buttonContainer = style({
   display: 'flex',

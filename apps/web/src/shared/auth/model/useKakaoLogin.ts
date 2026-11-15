@@ -1,9 +1,8 @@
 import { useCallback } from 'react';
 
-import { useFlow } from '@/app/routes/stackflow';
-
 import { postLinkSocialAccount } from '@/shared/auth/api/postLinkSocialAccount';
 import { postSocialLogin } from '@/shared/auth/api/postSocialLogin';
+import { getAuthDestination } from '@/shared/auth/lib/navigateByAuthStatus';
 import { KAKAO_LINK_ACCOUNT_STATE } from '@/shared/constants/auth';
 import { KAKAO_AUTHORIZE_URL } from '@/shared/constants/url';
 import { bridge } from '@/shared/lib/bridge';
@@ -30,8 +29,7 @@ export const useKakaoLogin = (
     onError,
   } = options;
 
-  const { replace } = useFlow();
-  const { setAccessToken } = useAuthStore();
+  const { setSession } = useAuthStore();
 
   const handleKakaoLogin = useCallback(() => {
     if (bridge.isNativeMethodAvailable('socialLogin')) {
@@ -55,20 +53,10 @@ export const useKakaoLogin = (
           const response = await postSocialLogin('KAKAO', {
             accessToken: result.accessToken,
           });
-          const { accessToken, status } = response.result;
-          setAccessToken(accessToken);
-
-          switch (status) {
-            case 'PENDING_TERMS':
-              replace('OnboardingTermAgreePage', {}, { animate: false });
-              break;
-            case 'PENDING_ONBOARDING':
-              replace('OnboardingPage', {}, { animate: false });
-              break;
-            case 'ACTIVE':
-              replace('HomePage', {}, { animate: false });
-              break;
-          }
+          setSession(
+            response.result,
+            getAuthDestination(response.result.status)
+          );
 
           onSuccess?.();
         } catch (error) {
@@ -106,7 +94,7 @@ export const useKakaoLogin = (
       console.error(errorMessage, error);
       onError?.(error instanceof Error ? error : new Error(errorMessage));
     }
-  }, [redirectUri, state, onSuccess, onError, replace, setAccessToken]);
+  }, [redirectUri, state, onSuccess, onError, setSession]);
 
   return { handleKakaoLogin };
 };

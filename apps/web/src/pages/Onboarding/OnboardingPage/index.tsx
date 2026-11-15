@@ -17,11 +17,9 @@ import type { CrewCategory } from '@/features/Onboarding/ui';
 import { crewEntityQueries as crewQueries } from '@/entities/Crew/api/queries';
 import { userQueries } from '@/entities/User/api/queries';
 
-import { BusinessError } from '@/shared/api/apiHandler';
 import { getQueryParam } from '@/shared/lib/url';
 import { useFunnel } from '@/shared/lib/useFunnel';
 import { AppLayout } from '@/shared/ui/layout';
-import { toastError } from '@/shared/ui/toast';
 
 type StepName =
   | 'role-select'
@@ -59,11 +57,20 @@ export function OnboardingPage() {
   const [onboardingState, setOnboardingState] = useState<OnboardingState>({});
   const joinCrewNameRef = useRef('');
   const joinCrewImageUrlRef = useRef('');
+  const submittingRef = useRef(false);
+  const release = () => {
+    submittingRef.current = false;
+  };
+  const refreshCrews = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: userQueries.myCrewsKey() }),
+      queryClient.invalidateQueries({ queryKey: userQueries.joinedCrewsKey() }),
+    ]);
 
   const { mutate: joinCrew, isPending: isJoining } = useMutation({
     ...crewQueries.joinCrew,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: userQueries.myCrewsKey() });
+    onSuccess: async () => {
+      await refreshCrews();
       replace(
         'OnboardingCompletePage',
         {
@@ -74,43 +81,25 @@ export function OnboardingPage() {
         { animate: false }
       );
     },
-    onError: (error) => {
-      if (
-        error instanceof BusinessError &&
-        (error.code === 'CREW_JOIN_LIMIT_EXCEEDED' ||
-          error.code === 'EXIT_REJOINING_COOLDOWN' ||
-          error.code === 'EXPELLED_REJOINING_COOLDOWN')
-      ) {
-        toastError(error.message);
-      }
-    },
+    onSettled: release,
   });
 
   const { mutate: createCrew, isPending: isCreating } = useMutation({
     ...crewQueries.createCrew,
-    onSuccess: (response) => {
-      queryClient.invalidateQueries({ queryKey: userQueries.myCrewsKey() });
+    onSuccess: async (response, variables) => {
+      await refreshCrews();
       replace(
         'OnboardingCompletePage',
         {
           role: 'leader',
-          crewName: onboardingState.crewName ?? '',
+          crewName: variables.name,
           inviteCode: response.result.invitationCode,
           crewImageUrl: response.result.crewImageUrl,
         },
         { animate: false }
       );
     },
-    onError: (error) => {
-      if (error instanceof BusinessError) {
-        if (
-          error.code === 'CREW_JOIN_LIMIT_EXCEEDED' ||
-          error.code === 'INVALID_CREW_NAME_CHARACTERS'
-        ) {
-          toastError(error.message);
-        }
-      }
-    },
+    onSettled: release,
   });
 
   return (
@@ -175,6 +164,8 @@ export function OnboardingPage() {
                 defaultValue={onboardingState.crewRegion}
                 isLoading={isCreating}
                 onNext={(crewRegion) => {
+                  if (submittingRef.current) return;
+                  submittingRef.current = true;
                   setOnboardingState((prev) => ({ ...prev, crewRegion }));
                   createCrew({
                     name: onboardingState.crewName ?? '',
@@ -183,6 +174,7 @@ export function OnboardingPage() {
                   });
                 }}
                 onPrev={() => {
+                  if (submittingRef.current) return;
                   setOnboardingState((prev) => ({
                     ...prev,
                     crewRegion: undefined,
@@ -199,11 +191,14 @@ export function OnboardingPage() {
                 defaultValue={defaultInviteCode}
                 isSubmitting={isJoining}
                 onNext={(inviteCode, _crewId, crewName, crewImageUrl) => {
+                  if (submittingRef.current) return;
+                  submittingRef.current = true;
                   joinCrewNameRef.current = crewName;
                   joinCrewImageUrlRef.current = crewImageUrl;
                   joinCrew({ invitationCode: inviteCode });
                 }}
                 onPrev={() => {
+                  if (submittingRef.current) return;
                   context.onPrev();
                 }}
               />

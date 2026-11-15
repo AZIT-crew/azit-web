@@ -1,7 +1,6 @@
 import { ChevronLeftIcon } from '@azit/design-system/icon';
 
-import { useFlow } from '@/app/routes/stackflow';
-
+import { useStack } from '@/shared/lib/stackflow/useStack';
 import * as styles from '@/shared/ui/button/BackButton.css';
 
 interface BackButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -10,9 +9,9 @@ interface BackButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> 
 }
 
 export function BackButton({ onClick, ...props }: BackButtonProps) {
-  const { pop } = useFlow();
+  const { pop } = useStack();
   const goBack = () => {
-    pop();
+    pop('HomePage');
   };
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {

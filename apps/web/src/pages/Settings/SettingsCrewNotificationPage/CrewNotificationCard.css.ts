@@ -1,5 +1,5 @@
 import { vars, typography } from '@azit/design-system';
-import { style } from '@vanilla-extract/css';
+import { keyframes, style } from '@vanilla-extract/css';
 
 export const card = style({
   display: 'flex',
@@ -31,6 +31,7 @@ export const crewInfo = style({
   display: 'flex',
   alignItems: 'center',
   gap: 8,
+  minWidth: 0,
 });
 
 export const crewImage = style({
@@ -41,6 +42,7 @@ export const crewImage = style({
 });
 
 export const crewTextWrapper = style({
+  minWidth: 0,
   display: 'flex',
   flexDirection: 'column',
   justifyContent: 'center',
@@ -51,6 +53,9 @@ export const crewName = style([
   {
     fontWeight: 500,
     color: vars.colors.gray70,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
   },
 ]);
 
@@ -78,6 +83,7 @@ export const switchTrack = style({
   cursor: 'pointer',
   border: 'none',
   padding: 0,
+  selectors: { '&:disabled': { cursor: 'default' } },
 });
 
 export const switchTrackOn = style({
@@ -104,4 +110,18 @@ export const switchThumbOn = style({
 
 export const switchThumbOff = style({
   transform: 'translateX(2px)',
+});
+
+const spin = keyframes({ to: { transform: 'rotate(360deg)' } });
+export const pendingSpinner = style({
+  display: 'inline-block',
+  width: 12,
+  height: 12,
+  margin: 4,
+  boxSizing: 'border-box',
+  border: `2px solid ${vars.colors.gray30}`,
+  borderTopColor: vars.colors.blue80,
+  borderRadius: '50%',
+  animation: `${spin} 0.7s linear infinite`,
+  '@media': { '(prefers-reduced-motion: reduce)': { animation: 'none' } },
 });

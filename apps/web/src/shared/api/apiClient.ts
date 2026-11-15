@@ -1,12 +1,17 @@
 import ky, { type NormalizedOptions } from 'ky';
 
-import { postReissueToken } from '@/shared/api/handlers/postReissueToken';
 import { createHttpMethods } from '@/shared/api/httpMethods';
+import {
+  isAuthenticationError,
+  refreshSession,
+  SessionChangedError,
+} from '@/shared/auth/model/session';
 import { BASE_API_URL } from '@/shared/constants/url';
 import { networkLog } from '@/shared/lib/networkLog';
 import { useAuthStore } from '@/shared/store/auth';
 
-let refreshPromise: Promise<string | undefined> | null = null;
+// Ky의 retryCount는 네트워크 재시도도 센다. 인증 재요청 여부는 요청별로 추적한다.
+const authReplayedRequests = new WeakSet<object>();
 
 export const baseApi = ky.create({
   prefixUrl: BASE_API_URL,
@@ -40,37 +45,51 @@ export const authApi = baseApi.extend({
       },
     ],
     afterResponse: [
-      // 401 에러 발생시, Native Bridge를 통해 토큰 재발급 후 재시도
+      // 401 발생 시 쿠키 기반 재발급을 공유하고 원 요청을 재시도한다.
       async (request, _options, response, state) => {
-        if (response.status === 401 && state.retryCount === 0) {
-          if (!refreshPromise) {
-            refreshPromise = postReissueToken()
-              .then((res) => res.result.accessToken)
-              .catch(() => undefined)
-              .finally(() => {
-                refreshPromise = null;
-              });
+        const requestScope = _options.signal ?? _options.context;
+        if (response.status === 401) {
+          const current = useAuthStore.getState();
+          if (
+            current.status === 'ACTIVE' &&
+            current.accessToken &&
+            request.headers.get('Authorization') !==
+              `Bearer ${current.accessToken}`
+          ) {
+            authReplayedRequests.add(requestScope);
+            return ky.retry({
+              request: new Request(request),
+              code: 'TOKEN_ALREADY_REFRESHED',
+            });
           }
-
-          const newToken = await refreshPromise;
-
-          if (newToken) {
-            useAuthStore.getState().setAccessToken(newToken);
+          if (authReplayedRequests.has(requestScope)) {
+            useAuthStore.getState().clearSession();
+            return response;
+          }
+          try {
+            const session = await refreshSession();
+            if (session.status !== 'ACTIVE') return response;
+            authReplayedRequests.add(requestScope);
             return ky.retry({
               request: new Request(request),
               code: 'TOKEN_REFRESHED',
             });
+          } catch (error) {
+            if (
+              !isAuthenticationError(error) &&
+              !(error instanceof SessionChangedError)
+            )
+              throw error;
+            return response;
           }
-
-          useAuthStore.getState().setAccessToken(undefined);
-          return response;
         }
 
         if (response.status === 403 && state.retryCount === 0) {
           try {
             const body = (await response.clone().json()) as { code?: string };
             if (body.code === 'INVALID_MEMBER_STATUS') {
-              window.location.href = '/crew-join/status/banned';
+              // 회원 상태와 크루 방출은 별도 계약이다. 재조회한 회원 상태로 이동한다.
+              await refreshSession();
             }
             // eslint-disable-next-line no-empty
           } catch (_error) {}
